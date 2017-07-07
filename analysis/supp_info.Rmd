@@ -21,6 +21,7 @@ This is version `r paste0('0.',format(Sys.time(), '%y.%m.%d'))`.
 
 ```{r set_options, echo=FALSE, cache=FALSE}
 options(width = 100)
+knitr::opts_chunk$set(message = FALSE)
 ```
 
 ## Requirements
@@ -359,29 +360,29 @@ model {
 	## alpha = exp(a) = intrinsic productivity
 	mu_Rkr_a ~ dnorm(0,1e-3)I(-4,4);
 	alpha <- exp(mu_Rkr_a);
-	E_Rkr_a <- mu_Rkr_a + var_Qr/(2 - 2*phi^2);
+	E_Rkr_a <- mu_Rkr_a + sigma_r/(2 - 2*phi^2);
 
 	## strength of dens depend
-	Rkr_b ~ dunif(0,0.1);
+	beta ~ dunif(0,0.1);
 
 	## covariate effects
-	for(i in 1:n_cov) { cc[i] ~ dnorm(0,0.001) }
+	for(i in 1:n_cov) { gamma[i] ~ dnorm(0,0.001) }
 
 	## AR(1) coef for proc errors
 	phi ~ dunif(-0.999,0.999);
 	
 	## process variance for recruits model
-	sd_Qr ~ dunif(0.001,20);
-	tau_Qr <- pow(sd_Qr,-2);
-	var_Qr <- pow(sd_Qr,2);
+	sd_r ~ dunif(0.001,20);
+	tau_r <- pow(sd_r,-2);
+	sigma_r <- pow(sd_r,2);
 	
 	## innovation in first year
-	innov_1 ~ dnorm(0,tau_Qr*(1-phi*phi));
+	innov_1 ~ dnorm(0,tau_r*(1-phi*phi));
 	
 	## obs variance for spawners
-	sd_Rs ~ dunif(0.001,20);
-	tau_Rs <- pow(sd_Rs,-2);
-	var_Rs <- pow(sd_Rs,2);
+	sd_s ~ dunif(0.001,20);
+	tau_s <- pow(sd_s,-2);
+	sigma_s <- pow(sd_s,2);
 	
 	## unprojectable early recruits;
 	## hyper mean across all popns
@@ -398,20 +399,20 @@ model {
 	## unif vec for Dirch prior
 	for(i in 1:A) { theta[i] <- 1 }
 	## hyper-mean for maturity
-	p_mu ~ ddirch(theta);
+	pi_eta ~ ddirch(theta);
 	## hyper-prec for maturity
-	p_pi ~ dunif(0.001,1e3);
-	for(t in 1:(n_yrs-age_min+n_fore)) { p_vec[t,1:A] ~ ddirch(p_mu*p_pi) }
+	pi_tau ~ dunif(0.001,1e3);
+	for(t in 1:(n_yrs-age_min+n_fore)) { pi_vec[t,1:A] ~ ddirch(pi_eta*pi_tau) }
 	
 	##------------
 	## LIKELIHOOD
 	##------------
 	## 1st brood yr requires different innovation
 	## predicted recruits in BY t
-	covar[1] <- inprod(cc,scl_cvrs[1,]);
+	covar[1] <- inprod(gamma,scl_cvrs[1,]);
 	ln_Rkr_a[1] <- mu_Rkr_a + covar[1];
-	E_ln_Rec[1] <- ln_Sp[1] + ln_Rkr_a[1] - Rkr_b*Sp[1] + phi*innov_1;
-	tot_ln_Rec[1] ~ dnorm(E_ln_Rec[1],tau_Qr);
+	E_ln_Rec[1] <- ln_Sp[1] + ln_Rkr_a[1] - beta*Sp[1] + phi*innov_1;
+	tot_ln_Rec[1] ~ dnorm(E_ln_Rec[1],tau_r);
 	res_ln_Rec[1] <- tot_ln_Rec[1] - E_ln_Rec[1];
 	## median of total recruits
 	tot_Rec[1] <- exp(tot_ln_Rec[1]);
@@ -421,16 +422,16 @@ model {
 		
 	## brood-yr recruits by age
 	for(a in 1:A) {
-		Rec[1,a] <- max(1,tot_Rec[1] * p_vec[1,a]);
+		Rec[1,a] <- max(1,tot_Rec[1] * pi_vec[1,a]);
 	}
 	
 	## brood years 2:(n_yrs-age_min)
 	for(t in 2:(n_yrs-age_min+n_fore)) {
 		## predicted recruits in BY t
-		covar[t] <- inprod(cc, scl_cvrs[t,]);
+		covar[t] <- inprod(gamma, scl_cvrs[t,]);
 		ln_Rkr_a[t] <- mu_Rkr_a + covar[t];
-		E_ln_Rec[t] <- ln_Sp[t] + ln_Rkr_a[t] - Rkr_b*Sp[t] + phi*res_ln_Rec[t-1];
-		tot_ln_Rec[t] ~ dnorm(E_ln_Rec[t],tau_Qr);
+		E_ln_Rec[t] <- ln_Sp[t] + ln_Rkr_a[t] - beta*Sp[t] + phi*res_ln_Rec[t-1];
+		tot_ln_Rec[t] ~ dnorm(E_ln_Rec[t],tau_r);
 		res_ln_Rec[t] <- tot_ln_Rec[t] - E_ln_Rec[t];
 		## median of total recruits
 		tot_Rec[t] <- exp(tot_ln_Rec[t]);
@@ -438,7 +439,7 @@ model {
 		ln_RS[t] <- tot_ln_Rec[t] - ln_Sp[t];
 		## brood-yr recruits by age
 		for(a in 1:A) {
-			Rec[t,a] <- max(1,tot_Rec[t] * p_vec[t,a]);
+			Rec[t,a] <- max(1,tot_Rec[t] * pi_vec[t,a]);
 		}
 	} ## end t loop over year
 
@@ -496,8 +497,8 @@ model {
 		## obs model for spawners
 		Sp[t] <- max(1,tot_Run[t] - dat_harv[t]);
 		ln_Sp[t] <- log(Sp[t]);
-		ln_dat_esc[t] ~ dnorm(ln_Sp[t], tau_Rs);
-		lp_esc[t] <- logdensity.norm(ln_dat_esc[t],ln_Sp[t], tau_Rs);
+		ln_dat_esc[t] ~ dnorm(ln_Sp[t], tau_s);
+		lp_esc[t] <- logdensity.norm(ln_dat_esc[t],ln_Sp[t], tau_s);
 	}
 			
 } ## end model description
@@ -527,10 +528,10 @@ dat_jags <- c("dat_age","ln_dat_esc","dat_harv","scl_cvrs","n_cov",
               "n_yrs","A","age_min","age_max","age_skip","n_fore") 
 
 ## 2. model params/states for JAGS to return
-par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a","Rkr_b","ln_Rkr_a",
-              "cc","lp_age","lp_esc",
-              "Sp","Rec","tot_ln_Rec","ln_RS","p_vec",
-              "var_Qr","var_Rs","res_ln_Rec")
+par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a","beta","ln_Rkr_a",
+              "gamma","lp_age","lp_esc",
+              "Sp","Rec","tot_ln_Rec","ln_RS","pi_vec",
+              "sigma_r","sigma_s","res_ln_Rec")
 
 ## 3. MCMC control params
 ## MCMC parameters
@@ -543,10 +544,10 @@ mcmc_samp <- (mcmc_length-mcmc_burn)*mcmc_chains/mcmc_thin
 
 ## function to create JAGS inits
 init_vals <- function() {
-	list(mu_Rkr_a=1, cc=rnorm(n_cov,0,0.1),
-	     Rkr_b=1/exp(mean(ln_dat_esc, na.rm=TRUE)),
-	     p_pi=1, p_mu=rep(1,A),
-	     p_vec=matrix(c(0.01,0.3,0.48,0.15,0.05,0.01),n_yrs-age_min+n_fore,A,byrow=TRUE),
+	list(mu_Rkr_a=1, gamma=rnorm(n_cov,0,0.1),
+	     beta=1/exp(mean(ln_dat_esc, na.rm=TRUE)),
+	     pi_tau=1, pi_eta=rep(1,A),
+	     pi_vec=matrix(c(0.01,0.3,0.48,0.15,0.05,0.01),n_yrs-age_min+n_fore,A,byrow=TRUE),
 	     Rec_mu=log(1000),
 	     Rec_sig=0.1,
 	     tot_ln_Rec=rep(log(1000),n_yrs-age_min+n_fore),
@@ -607,9 +608,9 @@ The convergence statistics indicate that some of the elements in $p$ for the est
 Here is a table of summary statistics for some of the model parameters.
 
 ```{r tbl_summary_stats}
-tbl_smry <- mod_fit$BUGSoutput$summary[c("E_Rkr_a","Rkr_b",
-                                         paste0("cc[",seq(n_cov),"]"),
-                                         "var_Qr","var_Rs"),
+tbl_smry <- mod_fit$BUGSoutput$summary[c("E_Rkr_a","beta",
+                                         paste0("gamma[",seq(n_cov),"]"),
+                                         "sigma_r","sigma_s"),
                                        c("mean","sd","2.5%","50%","97.5%")]
 rownames(tbl_smry)[seq(n_cov)+2] <- colnames(dat_cvrs)                                 
 print(tbl_smry,digits=3,quote=FALSE,justify="right")
@@ -631,7 +632,7 @@ sDat <- sDat[,1:(n_yrs-age_min+n_fore)]
 rDat <- exp(apply(mod_fit$BUGSoutput$sims.list$tot_ln_Rec,2,quantile,CI_vec))
 ## median values for a & b
 aa <- apply(mod_fit$BUGSoutput$sims.list$ln_Rkr_a,2,median)
-bb <- apply(mod_fit$BUGSoutput$sims.list$Rkr_b,2,median)
+bb <- apply(mod_fit$BUGSoutput$sims.list$beta,2,median)
 
 ## empty plot space for spawner-recruit relationships
 dd <- 3000
@@ -679,7 +680,7 @@ text(x=par()$usr[1]+par()$pin[2]/par()$pin[1]*offSet*diff(par()$usr[1:2]),
 ## posterior for a/b
 par(mai=c(0.8,0.4,0.3,0.1))
 aa <- matrix(mod_fit$BUGSoutput$sims.array[,,"E_Rkr_a"],ncol=1)
-bb <- matrix(mod_fit$BUGSoutput$sims.array[,,"Rkr_b"],ncol=1)
+bb <- matrix(mod_fit$BUGSoutput$sims.array[,,"beta"],ncol=1)
 R_b_est <- aa/bb
 R_b_est <- R_b_est[R_b_est > 0]
 R_b_CI <- quantile(R_b_est,c(0.025,0.5,0.975))
@@ -704,7 +705,7 @@ Here are time series plots of the covariates (a-e) and histograms of their effec
 ```{r plot_cov_effects, fig.width=8, fig.height=10, fig.pos="placeHere", warnings=FALSE, messages=FALSE}
 clr <- rgb(0, 0, 255, alpha = 50, maxColorValue = 255)
 offSet <- 0.07
-c_est <- mod_fit$BUGSoutput$sims.list$cc
+c_est <- mod_fit$BUGSoutput$sims.list$gamma
 par(mfrow=c(n_cov,2), mai=c(0.4,0.2,0.1,0.1), omi=c(0.2,0.5,0,0))
 ylN <- floor(min(c_est)*10)/10
 ylM <- ceiling(max(c_est)*10)/10
@@ -934,9 +935,9 @@ lines(t_idx_a, pDat[2,], col="blue3", lwd=2)
 Here is the time series of estimated recruits-per-spawner. Values above (below) the dashed line at zero indicate positive (negative) population growth.
 
 ```{r plot_R_per_S, fig.width=6, fig.height=4, fig.pos="placeHere"}
-pDat <- apply(mod_fit$BUGSoutput$sims.list$ln_RS,2,sort)
+pDat <- apply(mod_fit$BUGSoutput$sims.list$ln_s,2,sort)
 pDat <- apply(pDat,2,function(x) { x[mcmc_samp*CI_vec] })
-pDat[2,] <- apply(mod_fit$BUGSoutput$sims.list$ln_RS,2,median)
+pDat[2,] <- apply(mod_fit$BUGSoutput$sims.list$ln_s,2,median)
 ypMin <- min(pDat)
 ypMax <- max(pDat)
 par(mai=c(0.8,0.8,0.1,0.1), omi=c(0,0.2,0.1,0.2))
@@ -954,7 +955,7 @@ Here are time series of the estimated proportions of each age class by brood yea
 ```{r plot_age_comp, fig.width=6, fig.height=4, fig.pos="placeHere"}
 par(mai=c(0.8,0.8,0.1,0.1), omi=c(0,0.1,0.2,0.2))
 clr <- rgb(0, 0, 255, alpha = 40, maxColorValue = 255)
-age_est <- t(apply(apply(mod_fit$BUGSoutput$sims.list$p_vec,c(3,2),mean),2,cumsum))
+age_est <- t(apply(apply(mod_fit$BUGSoutput$sims.list$pi_vec,c(3,2),mean),2,cumsum))
 nRec <- n_yrs-age_min
 plot(t_idx_a, rep(1,nRec+n_fore), ylab="Proportion", xlab="Brood year", ylim=c(0,1), las=1,
      xaxs="i", yaxs="i", type="n", lty="solid", col="blue3", cex.lab=1.2)

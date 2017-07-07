@@ -308,13 +308,8 @@ ex_url &lt;- &quot;https://raw.githubusercontent.com/mdscheuerell/skagit_sthd/ma
 <h2>Loading the fish data</h2>
 <p>Here we load in the first three data files and do some simple calculations and manipulations. First the spawner data:</p>
 <pre class="r"><code>## escapement
-dat_esc &lt;- read_csv(paste0(ex_url,fn_esc))</code></pre>
-<pre><code>## Parsed with column specification:
-## cols(
-##   year = col_integer(),
-##   escapement = col_integer()
-## )</code></pre>
-<pre class="r"><code>## years of data
+dat_esc &lt;- read_csv(paste0(ex_url,fn_esc))
+## years of data
 dat_yrs &lt;- dat_esc$year
 ## number of years of data
 n_yrs &lt;- length(dat_yrs)
@@ -325,18 +320,8 @@ yr_last &lt;- max(dat_yrs)
 ln_dat_esc &lt;- c(log(dat_esc$escapement),rep(NA,n_fore))</code></pre>
 <p>Next the age composition data:</p>
 <pre class="r"><code>## age comp data
-dat_age &lt;- read_csv(paste0(ex_url,fn_age))</code></pre>
-<pre><code>## Parsed with column specification:
-## cols(
-##   year = col_integer(),
-##   age3 = col_integer(),
-##   age4 = col_integer(),
-##   age5 = col_integer(),
-##   age6 = col_integer(),
-##   age7 = col_integer(),
-##   age8 = col_integer()
-## )</code></pre>
-<pre class="r"><code>## drop year col &amp; first age_min+age_skip rows
+dat_age &lt;- read_csv(paste0(ex_url,fn_age))
+## drop year col &amp; first age_min+age_skip rows
 dat_age &lt;- dat_age[-(1:(age_min+age_skip)),-1]
 ## num of age classes
 A &lt;- age_max-age_min+1
@@ -354,13 +339,8 @@ dat_age[idx_NA_yrs,&quot;sum&quot;] &lt;- A
 dat_age &lt;- as.matrix(dat_age)</code></pre>
 <p>And then the harvest data:</p>
 <pre class="r"><code>## harvest
-dat_harv &lt;- read_csv(paste0(ex_url,fn_harv))</code></pre>
-<pre><code>## Parsed with column specification:
-## cols(
-##   year = col_integer(),
-##   catch = col_integer()
-## )</code></pre>
-<pre class="r"><code>## drop year col &amp; first age_max rows
+dat_harv &lt;- read_csv(paste0(ex_url,fn_harv))
+## drop year col &amp; first age_max rows
 dat_harv &lt;- c(dat_harv$catch,rep(0,n_fore))</code></pre>
 </div>
 <div id="loading-the-covariates" class="section level2">
@@ -405,7 +385,7 @@ print(flow_raw[hdr_flow],quote=FALSE)</code></pre>
 ## [11] # Automated-retrieval info: https://help.waterdata.usgs.gov/faq/automated-retrievals      
 ## [12] #                                                                                         
 ## [13] # Contact:   gs-w_support_nwisweb@usgs.gov                                                
-## [14] # retrieved: 2017-07-07 15:45:39 EDT       (caww02)                                       
+## [14] # retrieved: 2017-07-07 16:21:43 EDT       (vaww02)                                       
 ## [15] #                                                                                         
 ## [16] # Data for the following 1 site(s) are contained in this file                             
 ## [17] #    USGS 12178100 NEWHALEM CREEK NEAR NEWHALEM, WA                                       
@@ -519,14 +499,8 @@ print(NPGO_raw[seq(hdr_NPGO)],quote=FALSE)</code></pre>
 ## [30] #      YEAR            MONTH        NPGO index</code></pre>
 <p>Next, we will extract the actual NPGO indices for the years of interest and inspect the file contents. We also want the average NPGO annual index from January 1 through December 31 during the first year that the juvenile steelhead are in the ocean (i.e., during their second year of life). Therefore, we need NPGO values from <code>yr_frst + marine_lag</code> = 1980 through <code>yr_last - age_min + n_fore + marine_lag</code> = 2015.</p>
 <pre class="r"><code>## NPGO data for years of interest
-dat_NPGO &lt;- read_table(url_NPGO, col_names = FALSE, skip=hdr_NPGO + (yr_frst-1950)*12, n_max = n_yrs*12)</code></pre>
-<pre><code>## Parsed with column specification:
-## cols(
-##   X1 = col_double(),
-##   X2 = col_double(),
-##   X3 = col_double()
-## )</code></pre>
-<pre class="r"><code>colnames(dat_NPGO) &lt;- c(&quot;year&quot;,&quot;month&quot;,&quot;NPGO&quot;)
+dat_NPGO &lt;- read_table(url_NPGO, col_names = FALSE, skip=hdr_NPGO + (yr_frst-1950)*12, n_max = n_yrs*12)
+colnames(dat_NPGO) &lt;- c(&quot;year&quot;,&quot;month&quot;,&quot;NPGO&quot;)
 ## select only years of interest indexed by brood year 
 dat_NPGO &lt;- dat_NPGO[dat_NPGO$year &gt;= yr_frst+marine_lag &amp;
                      dat_NPGO$year &lt;= yr_last-age_min+n_fore+marine_lag,]
@@ -589,13 +563,8 @@ print(CUI_raw[seq(hdr_CUI-1)],quote=FALSE)</code></pre>
 ## [4] meters per second along each 100 meters of coastline.  -9999 indicates missing
 ## [5] value.  Positive numbers indicate offshore transport.  Day is based on PST.</code></pre>
 <pre class="r"><code>## get daily CUI data
-dat_CUI &lt;- read_table(url_CUI, col_names = TRUE, skip=hdr_CUI-1)</code></pre>
-<pre><code>## Parsed with column specification:
-## cols(
-##   YYYYMMDD = col_integer(),
-##   Index = col_integer()
-## )</code></pre>
-<pre class="r"><code>## extract year from date
+dat_CUI &lt;- read_table(url_CUI, col_names = TRUE, skip=hdr_CUI-1)
+## extract year from date
 dat_CUI$yr &lt;- gsub(&quot;[0-9]{4}$&quot;,&quot;&quot;,dat_CUI$YYYYMMDD)
 ## select only years of interest
 cui &lt;- dat_CUI[dat_CUI$yr &gt;= yr_frst+marine_lag &amp; dat_CUI$yr &lt;= yr_last-age_min+n_fore+marine_lag,]
@@ -607,13 +576,8 @@ dat_STI &lt;- data.frame(year=seq(yr_frst,yr_last-age_min+n_fore),STI=sapply(cum
 <div id="hatchery-releases" class="section level3">
 <h3>Hatchery releases</h3>
 <p>The numbers of hatchery fish released each year is listed in a file on the project site. They have already been lagged 2 years (i.e., brood year + 2) to account for the potential competitive interactions during their juvenile life stage. (We will divide the release number by 1000 for plotting purposes.)</p>
-<pre class="r"><code>dat_hrel &lt;- read_csv(paste0(ex_url,fn_hrel)) </code></pre>
-<pre><code>## Parsed with column specification:
-## cols(
-##   year = col_integer(),
-##   Hrel = col_integer()
-## )</code></pre>
-<pre class="r"><code>dat_hrel </code></pre>
+<pre class="r"><code>dat_hrel &lt;- read_csv(paste0(ex_url,fn_hrel)) 
+dat_hrel </code></pre>
 <pre><code>## # A tibble: 36 x 2
 ##     year   Hrel
 ##    &lt;int&gt;  &lt;int&gt;
@@ -1160,13 +1124,8 @@ axis(2,at=c(4000,8000,16000))</code></pre>
 <h3>Correlation of innovations &amp; SAR</h3>
 <p>Here is our estimate of the correlation between the model innovations (i.e, process residuals) and the smolt-to-adult return rate (i.e., logit transformed proportion of smolts that survive to adulthood) of hatchery steelhead from the Skagit R (Neala Kendall, WDFW, Olympia, WA, unpublished data). This gives an indication as to whether the unexplained variance in the productivity of wild fish might be related to the marine environment.</p>
 <pre class="r"><code>## get SAR data
-dat_SAR &lt;- read_csv(paste0(ex_url,&quot;skagit_sthd_hsar.csv&quot;))</code></pre>
-<pre><code>## Parsed with column specification:
-## cols(
-##   out_yr = col_integer(),
-##   SAR = col_double()
-## )</code></pre>
-<pre class="r"><code>## match brood yr to smolt outmigration yr
+dat_SAR &lt;- read_csv(paste0(ex_url,&quot;skagit_sthd_hsar.csv&quot;))
+## match brood yr to smolt outmigration yr
 dat_SAR$br_yr &lt;- dat_SAR$out_yr - 2
 ## get innov
 innov &lt;- t(mod_fit$BUGSoutput$sims.list$res_ln_Rec)
