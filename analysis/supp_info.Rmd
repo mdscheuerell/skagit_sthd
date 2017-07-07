@@ -33,10 +33,6 @@ if(!require("R2jags")) {
   install.packages("R2jags")
   library("R2jags")
 }
-if(!require("RCurl")) {
-  install.packages("RCurl")
-  library("RCurl")
-}
 if(!require("readr")) {
   install.packages("readr")
   library("readr")
@@ -47,14 +43,19 @@ if(!require("gsl")) {
 }
 ```
 
-The last thing we'll need is the following function for trimming real numbers to a desired precision when plotting output.
+The last thing we'll need a couple of helper functions.
 
 ```{r define_Re2prec}
+## better round
 Re2prec <- function(x,map="round",prec=1) {
   ## 'map' can be round, floor, or ceiling
   ## 'prec' is nearest value (eg, 0.1 means to nearest tenth); default 1 gives normal behavior
   if(prec<=0) { stop("\"prec\" cannot be less than or equal to 0") }
   do.call(map,list(x/prec))*prec
+}
+## return spring transition index
+get_STI <- function(x, day_max=200) {
+	return(min(which(x==min(x[1:day_max]))))
 }
 ```
 
@@ -192,7 +193,7 @@ Next we will retrieve the raw data file and print its metadata.
 
 ```{r get_flow_metadata}
 ## raw flow data from USGS
-flow_raw <- readLines(flow_url)
+flow_raw <- read_lines(flow_url)
 ## lines with metadata
 hdr_flow <- which(lapply(flow_raw,grep,pattern="\\#")==1, arr.ind=TRUE)
 ## print flow metadata
@@ -203,8 +204,7 @@ Lastly, we will extract the actual flow data for the years of interest and inspe
 
 ```{r get_flows}
 ## flow data for years of interest
-dat_flow <-  read_csv(textConnection(flow_raw[-c(hdr_flow,max(hdr_flow+2))]),
-                      header=TRUE, stringsAsFactors=FALSE, sep="\t")
+dat_flow <-  read_tsv(flow_url, col_names = FALSE, col_types = "ciDdc", skip = max(hdr_flow)+2)
 colnames(dat_flow) <- unlist(strsplit(tolower(flow_raw[max(hdr_flow)+1]), split="\\s+"))
 head(dat_flow)
 ```
@@ -219,10 +219,8 @@ colnames(dat_flow) <- c("date","flow")
 ## convert cubic feet to cubic meters
 dat_flow$flow <- dat_flow$flow / 35.3147
 ## flow by year & month
-dat_flow[,"year"] <- as.integer(sub("^([0-9]{4})-([0-9]{2})-([0-9]{2})","\\1",
-                                    dat_flow[,"date"]))
-dat_flow[,"month"] <- as.integer(sub("^([0-9]{4})-([0-9]{2})-([0-9]{2})","\\2",
-                                     dat_flow[,"date"]))
+dat_flow$year <- as.integer(format(dat_flow$date,"%Y"))
+dat_flow$month <- as.integer(format(dat_flow$date,"%m"))
 dat_flow <- dat_flow[,c("year","month","flow")]
 ```
 
@@ -271,7 +269,7 @@ We used the monthly NPGO data provided by Emanuele Di Lorenzo, which are availab
 ## URL for NPGO data
 url_NPGO <- "http://www.o3d.org/npgo/npgo.php"
 ## raw NPGO data 
-NPGO_raw <- readLines(url_NPGO)
+NPGO_raw <- read_lines(url_NPGO)
 ## line with data headers
 hdr_NPGO <- which(lapply(NPGO_raw,grep,pattern="YEAR")==1, arr.ind=TRUE)
 ## print PDO metadata
@@ -282,10 +280,8 @@ Next, we will extract the actual NPGO indices for the years of interest and insp
 
 ```{r get_NPGO}
 ## NPGO data for years of interest
-dat_NPGO<- read.table(url_NPGO, header=FALSE, stringsAsFactors=FALSE,
-                      skip=hdr_NPGO + (yr_frst-1950)*12, nrows = n_yrs*12)
+dat_NPGO <- read_table(url_NPGO, col_names = FALSE, skip=hdr_NPGO + (yr_frst-1950)*12, n_max = n_yrs*12)
 colnames(dat_NPGO) <- c("year","month","NPGO")
-
 ## select only years of interest indexed by brood year 
 dat_NPGO <- dat_NPGO[dat_NPGO$year >= yr_frst+marine_lag &
                      dat_NPGO$year <= yr_last-age_min+n_fore+marine_lag,]
@@ -303,7 +299,7 @@ We calculated the spring transition index (STI) from the daily coastal upwelling
 ## URL for CUI data
 url_CUI <- "https://www.pfeg.noaa.gov/products/PFELData/upwell/daily/p06dayac.all"
 ## raw CUI data from PFEL
-CUI_raw <- readLines(url_CUI)
+CUI_raw <- read_lines(url_CUI)
 ## line with data headers
 hdr_CUI <- which(lapply(CUI_raw,grep,pattern="YYYYMMDD")==1, arr.ind=TRUE)
 ## print CUI metadata
@@ -312,17 +308,13 @@ print(CUI_raw[seq(hdr_CUI-1)],quote=FALSE)
 
 ```{r get_CUI}
 ## get daily CUI data
-dat_CUI <- read.table(url_CUI, header=TRUE, stringsAsFactors=FALSE, skip=hdr_CUI-1)
+dat_CUI <- read_table(url_CUI, col_names = TRUE, skip=hdr_CUI-1)
 ## extract year from date
 dat_CUI$yr <- gsub("[0-9]{4}$","",dat_CUI$YYYYMMDD)
 ## select only years of interest
 cui <- dat_CUI[dat_CUI$yr >= yr_frst+marine_lag & dat_CUI$yr <= yr_last-age_min+n_fore+marine_lag,]
 ## calculate cumulative upwelling by year
-cum_CUI <- tapply(cui[,"Index"], cui$yr, cumsum)
-## function to return spring transition index
-get_STI <- function(x, day_max=200) {
-	return(min(which(x==min(x[1:day_max]))))
-}
+cum_CUI <- tapply(cui$Index, cui$yr, cumsum)
 ## calc STI for each year
 dat_STI <- data.frame(year=seq(yr_frst,yr_last-age_min+n_fore),STI=sapply(cum_CUI,get_STI))
 ```
@@ -383,132 +375,132 @@ model {
 	tau_Qr <- pow(sd_Qr,-2);
 	var_Qr <- pow(sd_Qr,2)
 	
-	# innovation in first year
+	## innovation in first year
 	innov_1 ~ dnorm(0,tau_Qr*(1-phi*phi));
 	
-	# obs variance for spawners
+	## obs variance for spawners
 	sd_Rs ~ dunif(0.001,20);
 	tau_Rs <- pow(sd_Rs,-2);
 	var_Rs <- pow(sd_Rs,2)
 	
-	# unprojectable early recruits;
-	# hyper mean across all popns
+	## unprojectable early recruits;
+	## hyper mean across all popns
 	Rec_mu ~ dnorm(0,0.001);
-	# hyper SD across all popns
+	## hyper SD across all popns
 	Rec_sig ~ dunif(0,100);
-	# precision across all popns
+	## precision across all popns
 	Rec_tau <- pow(Rec_sig,-2);
-	# multipliers for unobservable total runs
+	## multipliers for unobservable total runs
 	ttl_run_mu ~ dunif(1,5);
 	ttl_run_tau ~ dunif(1,20);
 	
-	# maturity schedule
-	# unif vec for Dirch prior
+	## maturity schedule
+	## unif vec for Dirch prior
 	for(i in 1:A) { theta[i] <- 1 }
-	# hyper-mean for maturity
+	## hyper-mean for maturity
 	p_mu ~ ddirch(theta);
-	# hyper-prec for maturity
+	## hyper-prec for maturity
 	p_pi ~ dunif(0.001,1e3);
 	for(t in 1:(n_yrs-age_min+n_fore)) { p_vec[t,1:A] ~ ddirch(p_mu*p_pi) }
 	
-	#------------
-	# LIKELIHOOD
-	#------------
-	# 1st brood yr requires different innovation
-	# predicted recruits in BY t
+	##------------
+	## LIKELIHOOD
+	##------------
+	## 1st brood yr requires different innovation
+	## predicted recruits in BY t
 	covar[1] <- inprod(cc,scl_cvrs[1,]);
 	ln_Rkr_a[1] <- mu_Rkr_a + covar[1];
 	E_ln_Rec[1] <- ln_Sp[1] + ln_Rkr_a[1] - Rkr_b*Sp[1] + phi*innov_1;
 	tot_ln_Rec[1] ~ dnorm(E_ln_Rec[1],tau_Qr);
 	res_ln_Rec[1] <- tot_ln_Rec[1] - E_ln_Rec[1];
-	# median of total recruits
+	## median of total recruits
 	tot_Rec[1] <- exp(tot_ln_Rec[1]);
 
-	# R/S
+	## R/S
 	ln_RS[1] <- tot_ln_Rec[1] - ln_Sp[1];
 		
-	# brood-yr recruits by age
+	## brood-yr recruits by age
 	for(a in 1:A) {
 		Rec[1,a] <- max(1,tot_Rec[1] * p_vec[1,a]);
 		}
 	
-	# brood years 2:(n_yrs-age_min)
+	## brood years 2:(n_yrs-age_min)
 	for(t in 2:(n_yrs-age_min+n_fore)) {
-		# predicted recruits in BY t
+		## predicted recruits in BY t
     covar[t] <- inprod(cc,scl_cvrs[t,]);
 		ln_Rkr_a[t] <- mu_Rkr_a + covar[t];
 		E_ln_Rec[t] <- ln_Sp[t] + ln_Rkr_a[t] - Rkr_b*Sp[t] + phi*res_ln_Rec[t-1];
 		tot_ln_Rec[t] ~ dnorm(E_ln_Rec[t],tau_Qr);
 		res_ln_Rec[t] <- tot_ln_Rec[t] - E_ln_Rec[t];
-		# median of total recruits
+		## median of total recruits
 		tot_Rec[t] <- exp(tot_ln_Rec[t]);
-		# R/S
+		## R/S
 		ln_RS[t] <- tot_ln_Rec[t] - ln_Sp[t];
-		# brood-yr recruits by age
+		## brood-yr recruits by age
 		for(a in 1:A) {
 			Rec[t,a] <- max(1,tot_Rec[t] * p_vec[t,a]);
 			}
-		} # end t loop over year
+		} ## end t loop over year
 
-	# get total cal yr returns for first age_min yrs
+	## get total cal yr returns for first age_min yrs
 	for(i in 1:(age_min+age_skip)) {
 		ln_tot_Run[i] ~ dnorm(ttl_run_mu*Rec_mu,Rec_tau/ttl_run_tau);
 		tot_Run[i] <- exp(ln_tot_Run[i]);
     }
 
-	# get predicted calendar year returns by age
-	# matrix Run has dim [(n_yrs-age_min) x A]
-	# step 1: incomplete early broods
-	# first cal yr of this grp is first brood yr + age_min + age_skip
+	## get predicted calendar year returns by age
+	## matrix Run has dim [(n_yrs-age_min) x A]
+	## step 1: incomplete early broods
+	## first cal yr of this grp is first brood yr + age_min + age_skip
 	for(i in 1:(age_max-age_min-age_skip)) {
-		# projected recruits
+		## projected recruits
 		for(a in 1:(i+age_skip)) {
 			Run[i,a] <- Rec[(age_skip+i)-a+1,a];
 			}
-		# imputed recruits
+		## imputed recruits
 		for(a in (i+1+age_skip):A) {
 			lnRec[i,a] ~ dnorm(Rec_mu,Rec_tau);
 			Run[i,a] <- exp(lnRec[i,a]);
 			}
-		# total run size
+		## total run size
 		tot_Run[i+age_min+age_skip] <- sum(Run[i,1:A]);
 		# predicted age-prop vec for multinom
 		for(a in 1:A) {
 			age_v[i,a] <- Run[i,a] / tot_Run[i+age_min];
 			}
-		# multinomial for age comp
+		## multinomial for age comp
 		dat_age[i,1:A] ~ dmulti(age_v[i,1:A],dat_age[i,A+1]);
     lp_age[i] <- logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]);
 		}
 	
-	# step 2: info from complete broods
-	# first cal yr of this grp is first brood yr + age_max
+	## step 2: info from complete broods
+	## first cal yr of this grp is first brood yr + age_max
 	for(i in (A-age_skip):(n_yrs-age_min-age_skip+n_fore)) {
 		for(a in 1:A) {
 			Run[i,a] <- Rec[(age_skip+i)-a+1,a];
 			}
-		# total run size
+		## total run size
 		tot_Run[i+age_min+age_skip] <- sum(Run[i,1:A]);
-		# predicted age-prop vec for multinom
+		## predicted age-prop vec for multinom
 		for(a in 1:A) {
 			age_v[i,a] <- Run[i,a] / tot_Run[i+age_min];
 			}
-		# multinomial for age comp
+		## multinomial for age comp
 		dat_age[i,1:A] ~ dmulti(age_v[i,1:A],dat_age[i,A+1]);
     lp_age[i] <- logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]);
 		}
 		
-	# get predicted calendar year spawners
-	# first cal yr is first brood yr
+	## get predicted calendar year spawners
+	## first cal yr is first brood yr
 	for(t in 1:(n_yrs+n_fore)) {
-		# obs model for spawners
+		## obs model for spawners
     Sp[t] <- max(1,tot_Run[t] - dat_harv[t]);
 		ln_Sp[t] <- log(Sp[t]);
 		ln_dat_esc[t] ~ dnorm(ln_Sp[t], tau_Rs);
     lp_esc[t] <- logdensity.norm(ln_dat_esc[t],ln_Sp[t], tau_Rs)
 		}
 			
-} # end model description
+} ## end model description
 
 ", file=fn_jags)
 ```
