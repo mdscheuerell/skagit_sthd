@@ -128,7 +128,7 @@ n_yrs <- length(dat_yrs)
 yr_frst <- min(dat_yrs)
 yr_last <- max(dat_yrs)
 ## log of escapement
-ln_dat_esc <- c(log(dat_esc[,-1]),rep(NA,n_fore))
+ln_dat_esc <- c(log(dat_esc$escapement),rep(NA,n_fore))
 ```
 
 Next the age composition data:
@@ -160,7 +160,7 @@ And then the harvest data:
 ## harvest
 dat_harv <- read_csv(paste0(ex_url,fn_harv))
 ## drop year col & first age_max rows
-dat_harv <- c(dat_harv[,-1],rep(0,n_fore))
+dat_harv <- c(dat_harv$catch,rep(0,n_fore))
 ```
 
 ## Loading the covariates
@@ -226,7 +226,7 @@ dat_flow <- dat_flow[,c("year","month","flow")]
 
 #### Winter maximum
 
-We are interested in the maximum of the daily peak flows from October through March during the first year that juveniles are rearing in streams. This means we need to combine flow values for the fall of year $t$ with those in the spring of year $t+1$. Therefore, the flow time series will begin in ``yr_frst = `r yr_frst``; the last year of flow data will then be ``yr_last - age_min + n_fore + flow_lag = `r yr_last - age_min + n_fore + flow_lag``.
+We are interested in the maximum of the daily peak flows from October through March during the first year that juveniles are rearing in streams. This means we need to combine flow values for the fall of year $t$ with those in the spring of year $t+1$. Therefore, the flow time series will begin in `r yr_frst`; the last year of flow data will be `r yr_last - age_min + n_fore + flow_lag`.
 
 ```{r wtr_flow}
 ## autumn flows in year t
