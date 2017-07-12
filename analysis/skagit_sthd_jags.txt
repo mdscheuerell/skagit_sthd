@@ -8,7 +8,7 @@ model {
 	## alpha = exp(a) = intrinsic productivity
 	alpha ~ dunif(0.1,10);
 	mu_Rkr_a <- log(alpha);
-	E_Rkr_a <- mu_Rkr_a + sigma_r/(2 - 2*phi^2);
+	E_Rkr_a <- mu_Rkr_a + sigma_r/2;
 
 	## strength of dens depend
 	beta ~ dunif(0,0.1);
@@ -17,16 +17,10 @@ model {
 	# for(i in 1:n_cov) { gamma[i] ~ dnorm(0,0.001) }
 	gamma ~ dnorm(0,0.001)
 
-	## AR(1) coef for proc errors
-	phi ~ dunif(-0.999,0.999);
-	
 	## process variance for recruits model
 	sd_r ~ dunif(0.001,20);
 	tau_r <- pow(sd_r,-2);
 	sigma_r <- pow(sd_r,2);
-	
-	## innovation in first year
-	innov_1 ~ dnorm(0,tau_r*(1-phi*phi));
 	
 	## obs variance for spawners
 	sd_s ~ dunif(0.001,20);
@@ -56,12 +50,11 @@ model {
 	##------------
 	## LIKELIHOOD
 	##------------
-	## 1st brood yr requires different innovation
 	## predicted recruits in BY t
 	# covar[1] <- inprod(gamma,scl_cvrs[1,]);
 	covar[1] <- gamma*mod_cvrs[1];
   ln_Rkr_a[1] <- mu_Rkr_a + covar[1]; 
-	E_ln_Rec[1] <- ln_Sp[1] - beta*Sp[1] + ln_Rkr_a[1] + phi*innov_1;
+	E_ln_Rec[1] <- ln_Sp[1] - beta*Sp[1] + ln_Rkr_a[1];
 	tot_ln_Rec[1] ~ dnorm(E_ln_Rec[1],tau_r);
 	res_ln_Rec[1] <- tot_ln_Rec[1] - E_ln_Rec[1];
 	## median of total recruits
@@ -81,7 +74,7 @@ model {
 		# covar[t] <- inprod(gamma, scl_cvrs[t,]);
 	  covar[t] <- gamma*mod_cvrs[t];
     ln_Rkr_a[t] <- mu_Rkr_a + covar[t]; 
-		E_ln_Rec[t] <- ln_Sp[t]- beta*Sp[t] + ln_Rkr_a[t] + phi*(res_ln_Rec[t-1] - covar[t-1]);
+		E_ln_Rec[t] <- ln_Sp[t] - beta*Sp[t] + ln_Rkr_a[t];
 		tot_ln_Rec[t] ~ dnorm(E_ln_Rec[t],tau_r);
 		res_ln_Rec[t] <- tot_ln_Rec[t] - E_ln_Rec[t];
 		## median of total recruits
