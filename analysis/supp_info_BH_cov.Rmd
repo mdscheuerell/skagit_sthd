@@ -22,6 +22,7 @@ This is version `r paste0('0.',format(Sys.time(), '%y.%m.%d'))`.
 ```{r set_options, echo=FALSE, cache=FALSE}
 options(width = 100)
 knitr::opts_chunk$set(message = FALSE)
+set.seed(2017L)
 ```
 
 ## Requirements
@@ -397,7 +398,7 @@ model {
 	## PRIORS
 	##--------
 	## alpha = exp(a) = intrinsic productivity
-	alpha ~ dunif(0.1,10);
+	alpha ~ dunif(0.1,100);
 	mu_BH_a <- log(alpha);
 	E_BH_a <- mu_BH_a + sigma_r/2;
 
@@ -568,7 +569,7 @@ dat_jags <- c("dat_age","ln_dat_esc","dat_harv","mod_cvrs","n_cov",
 #              "Sp","Rec","tot_ln_Rec","ln_RS","pi_vec",
 #              "sigma_r","sigma_s","res_ln_Rec")
 par_jags <- c("alpha","ln_BH_a","E_BH_a","beta","gamma",
-              "Sp","lp_age","lp_esc","tot_ln_Rec")
+              "Sp","lp_age","lp_esc","tot_ln_Rec","res_ln_Rec")
 
 ## 3. MCMC control params
 ## MCMC parameters
@@ -584,7 +585,7 @@ init_vals <- function() {
 	list(alpha=2, gamma=0.1,
 	     beta=1/exp(mean(ln_dat_esc, na.rm=TRUE)),
 	     pi_tau=1, pi_eta=rep(1,A),
-	     pi_vec=matrix(c(0.01,0.3,0.48,0.15,0.05,0.01),n_yrs-age_min+n_fore,A,byrow=TRUE),
+	     pi_vec=matrix(c(0.01,0.3,0.48,0.15,0.04,0.02),n_yrs-age_min+n_fore,A,byrow=TRUE),
 	     Rec_mu=log(1000),
 	     Rec_sig=0.1,
 	     tot_ln_Rec=rep(log(1000),n_yrs-age_min+n_fore))
@@ -708,9 +709,9 @@ sDat <- sDat[,1:(n_yrs-age_min+n_fore)]
 ## posterior of recruits
 rDat <- exp(apply(mod_fit$BUGSoutput$sims.list$tot_ln_Rec,2,quantile,CI_vec))
 ## median values for a & b
-# aa <- apply(mod_fit$BUGSoutput$sims.list$alpha,2,median)
+aa <- apply(mod_fit$BUGSoutput$sims.list$ln_BH_a,2,median)
 # bb <- apply(mod_fit$BUGSoutput$sims.list$beta,2,median)
-aa <- median(mod_fit$BUGSoutput$sims.list$alpha)
+# aa <- median(mod_fit$BUGSoutput$sims.list$alpha)
 bb <- median(mod_fit$BUGSoutput$sims.list$beta)
 ## empty plot space for spawner-recruit relationships
 dd <- 3000
@@ -723,8 +724,8 @@ plot(sDat[2,],rDat[2,], xlim=c(0,xM), ylim=c(0,yM), pch=16, col="blue3", type="n
 	 xaxt="n", yaxt="n")
 axis(1, at=seq(0,xM,dd*2), labels=seq(0,xM,dd*2)/1000)
 axis(2, at=seq(0,yM,dd*2), labels=seq(0,yM,dd*2)/1000)
-#for(i in 1:length(aa)) { lines(seq(xM)*exp(aa[i]-bb*seq(xM)), col="darkgray") }
-lines((aa*seq(0,xM))/(1+bb*seq(0,xM)), col="darkgray")
+for(i in 1:length(aa)) { lines(exp(aa[i])*seq(0,xM)/(1+bb*seq(0,xM)), col="darkgray") }
+# lines(aa*seq(0,xM)/(1+bb*seq(0,xM)), col="darkgray")
 ## add S-R estimates and medians
 abline(a=0,b=1,lty="dashed")
 nCB <- n_yrs-age_max
@@ -742,12 +743,13 @@ text(x=par()$usr[1]+par()$pin[2]/par()$pin[1]*offSet*diff(par()$usr[1:2]),
 
 ## posterior for alpha
 clr <- rgb(0, 0, 255, alpha = 50, maxColorValue = 255)
+a_thresh <- 99
 par(mai=c(0.8,0.4,0.3,0.1))
-## Ricker a
+## B-H alpha
 R_alpha_est <- mod_fit$BUGSoutput$sims.list$alpha
 alphaCI <- quantile(R_alpha_est,c(0.025,0.5,0.975))
-R_alpha_est[R_alpha_est>9] <- 9
-hist(R_alpha_est,freq=FALSE,xlab="",main="",breaks=seq(0,9,0.2),
+R_alpha_est[R_alpha_est>a_thresh] <- a_thresh
+hist(R_alpha_est,freq=FALSE,xlab="",main="",breaks=seq(0,a_thresh,2),
      col=clr, border="blue3", ylab="", cex.lab=1.2, yaxt="n")
 aHt <- (par()$usr[4]-par()$usr[3])/12
 arrows(alphaCI,par()$usr[3],alphaCI,par()$usr[3]-aHt,
@@ -758,17 +760,21 @@ text(x=par()$usr[1]+par()$pin[2]/par()$pin[1]*offSet*diff(par()$usr[1:2]),
 
 ## posterior for K
 par(mai=c(0.8,0.4,0.3,0.1))
-aa <- matrix(mod_fit$BUGSoutput$sims.array[,,"E_BH_a"],ncol=1)
+aa <- matrix(mod_fit$BUGSoutput$sims.array[,,"alpha"],ncol=1)
 bb <- matrix(mod_fit$BUGSoutput$sims.array[,,"beta"],ncol=1)
-R_b_est <- aa/bb
+R_b_est <- (aa-1)/bb
 R_b_est <- R_b_est[R_b_est > 0]
 R_b_CI <- quantile(R_b_est,c(0.025,0.5,0.975))
-R_b_est[R_b_est>2e4] <- 2e4
-brks <- seq(Re2prec(min(R_b_est),"floor",2000),2e4,length.out=length(seq(0,9,0.2)))
+R_b_est[R_b_est>12e3] <- 12e3
+brks <- seq(Re2prec(min(R_b_est),"floor",1000),
+            Re2prec(max(R_b_est),"ceiling",1000),
+            length.out=length(seq(0,a_thresh,2)))
 hist(R_b_est, freq=FALSE, breaks=brks, col=clr, border="blue3",
 	 xlab="", xaxt="n", yaxt="n",
 	 main="", ylab="", cex.lab=1.2)
-axis(1, at=seq(Re2prec(min(R_b_est),"floor",2000),1.8e4,4000))
+axis(1, at=seq(Re2prec(min(R_b_est),"floor",1000),
+               Re2prec(max(R_b_est),"ceiling",1000),
+               2000))
 aHt <- (par()$usr[4]-par()$usr[3])/12
 arrows(R_b_CI,par()$usr[3],R_b_CI,par()$usr[3]-aHt,
        code=1,length=0.05,xpd=NA,col="blue3",lwd=1.5)
@@ -844,4 +850,25 @@ Here are several percentiles for the 2016 forecast for the total run size (i.e.,
 ```{r forecast_2016}
 data.frame(forecast=round(quantile(mod_fit$BUGSoutput$sims.list$Sp[,n_yrs+n_fore],
                                    probs=c(0.025,0.25,0.5,0.75,0.975))))
+```
+
+### Innovations
+
+Here is the time series of the so-called "innovations", which are the residuals from the process model. They give some indication of population productivity after accounting for the effects of density dependence.
+
+```{r plot_innovations, fig.width=6, fig.height=4, fig.pos="placeHere"}
+t_idx_a <- seq(yr_frst,length.out=n_yrs-age_min+n_fore)
+pDat <- apply(mod_fit$BUGSoutput$sims.list$res_ln_Rec,2,quantile,CI_vec)
+ypMin <- min(pDat)
+ypMax <- max(pDat)
+par(mai=c(0.8,0.8,0.1,0.1), omi=c(0,0.2,0.1,0.2))
+plot(t_idx_a,pDat[3,], ylim=c(ypMin,ypMax), type="n", #log="y",
+	 xlab="Brood year", ylab="Innovations", main="", cex.lab=1.2)
+abline(h=0, lty="dashed")
+polygon(c(t_idx_a,rev(t_idx_a)),c(pDat[3,],rev(pDat[1,])), col=clr, border=NA)
+lines(t_idx_a, pDat[2,], col="blue3", lwd=2)
+```
+
+```{r}
+acf(pDat[3,])
 ```
