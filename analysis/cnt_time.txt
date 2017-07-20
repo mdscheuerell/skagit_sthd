@@ -1,0 +1,10 @@
+Count = 3 ; Time = 7.8 
+Count = 5 ; Time = 12.8 
+Count = 7 ; Time = 19.9 
+Count = 9 ; Time = 25.2 
+Count = 11 ; Time = 33 
+Count = 13 ; Time = 38.1 
+Count = 15 ; Time = 45 
+Count = 17 ; Time = 50 
+Count = 19 ; Time = 57.1 
+Count = 21 ; Time = 62.1 
