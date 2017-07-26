@@ -6,7 +6,7 @@ model {
   ## PRIORS
   ##--------
   ## alpha = exp(a) = intrinsic productivity
-  alpha ~ dunif(0.1,10);
+  alpha ~ dunif(0.1,20);
   mu_Rkr_a <- log(alpha);
   E_Rkr_a <- mu_Rkr_a + sigma_r/(2 - 2*phi^2);
   

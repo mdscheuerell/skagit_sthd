@@ -1,10 +1,5 @@
-Count = 3 ; Time = 12.1 
-Count = 5 ; Time = 19.9 
-Count = 7 ; Time = 30.1 
-Count = 9 ; Time = 37.9 
-Count = 11 ; Time = 48.7 
-Count = 13 ; Time = 56.6 
-Count = 15 ; Time = 65.8 
-Count = 17 ; Time = 72.4 
-Count = 19 ; Time = 81.7 
-Count = 21 ; Time = 88.4 
+Count = 3 ; Time = 20.7 
+Count = 5 ; Time = 40.5 
+Count = 7 ; Time = 59.5 
+Count = 9 ; Time = 79.5 
+Count = 11 ; Time = 102.9 

@@ -6,7 +6,7 @@ model {
   ## PRIORS
   ##--------
   ## alpha = exp(a) = intrinsic productivity
-  alpha ~ dunif(0.1,10);
+  alpha ~ dunif(0.1,20);
   mu_Rkr_a <- log(alpha);
   E_Rkr_a <- mu_Rkr_a + sigma_r/(2 - 2*phi^2);
   
@@ -61,7 +61,7 @@ model {
   # covar[1] <- inprod(gamma,scl_cvrs[1,]);
   covar[1] <- gamma*mod_cvrs[1];
   ln_Rkr_a[1] <- mu_Rkr_a + covar[1]; 
-  E_ln_Rec[1] <- ln_Sp[1] - beta*Sp[1] + ln_Rkr_a[1] + phi*innov_1;
+  E_ln_Rec[1] <- ln_Rkr_a[1] + ln_Sp[1] - beta*Sp[1] + phi*innov_1;
   tot_ln_Rec[1] ~ dnorm(E_ln_Rec[1],tau_r);
   res_ln_Rec[1] <- tot_ln_Rec[1] - E_ln_Rec[1];
   ## median of total recruits
@@ -81,7 +81,7 @@ model {
     # covar[t] <- inprod(gamma, scl_cvrs[t,]);
     covar[t] <- gamma*mod_cvrs[t];
     ln_Rkr_a[t] <- mu_Rkr_a + covar[t]; 
-    E_ln_Rec[t] <- ln_Sp[t]- beta*Sp[t] + ln_Rkr_a[t] + phi*(res_ln_Rec[t-1]);
+    E_ln_Rec[t] <- ln_Rkr_a[t] + ln_Sp[t]- beta*Sp[t] + phi*(res_ln_Rec[t-1]);
     tot_ln_Rec[t] ~ dnorm(E_ln_Rec[t],tau_r);
     res_ln_Rec[t] <- tot_ln_Rec[t] - E_ln_Rec[t];
     ## median of total recruits

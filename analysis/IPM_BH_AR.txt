@@ -6,7 +6,7 @@ model {
   ## PRIORS
   ##--------
   ## alpha = exp(a) = intrinsic productivity
-  alpha ~ dunif(0.1,10);
+  alpha ~ dunif(0.1,100);
   mu_BH_a <- log(alpha);
   E_BH_a <- mu_BH_a + sigma_r/(2 - 2*phi^2);
   
