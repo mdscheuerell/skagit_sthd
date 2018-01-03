@@ -1,5 +1,0 @@
-Count = 3 ; Time = 20.7 
-Count = 5 ; Time = 40.5 
-Count = 7 ; Time = 59.5 
-Count = 9 ; Time = 79.5 
-Count = 11 ; Time = 102.9 
