@@ -149,7 +149,7 @@ marine_lag <- 2
 hrel_lag <- 2
 
 ## number of years of forecasts
-n_fore <- 1
+n_fore <- 0
 
 ## upper threshold for Gelman & Rubin's (1992) potential scale reduction factor (Rhat).
 Rhat_thresh <- 1.1
@@ -186,7 +186,10 @@ dat_age <- dat_age[-(1:(age_min+age_skip)),-1]
 ## num of age classes
 A <- age_max-age_min+1
 ## add row(s) of NA's for forecast years
-dat_age <- rbind(dat_age,matrix(0,n_fore,A,dimnames=list(n_yrs+seq(n_fore),colnames(dat_age))))
+if(n_fore > 0) {
+  dat_age <- rbind(dat_age,
+                   matrix(0,n_fore,A,dimnames=list(n_yrs+seq(n_fore),colnames(dat_age))))
+}
 ## total num of age obs by cal yr
 dat_age[,"sum"] <- apply(dat_age,1,sum)
 ## row indices for any years with no obs age comp
@@ -325,7 +328,9 @@ Next, we will extract the actual NPGO indices for the years of interest and insp
 
 ```{r get_NPGO}
 ## NPGO data for years of interest
-dat_NPGO <- read_table(url_NPGO, col_names = FALSE, skip=hdr_NPGO + (yr_frst-1950)*12, n_max = n_yrs*12)
+dat_NPGO <- read_table(url_NPGO, col_names = FALSE,
+                       skip = hdr_NPGO + (yr_frst-1950)*12,
+                       n_max = (n_yrs-1)*12)
 colnames(dat_NPGO) <- c("year","month","NPGO")
 ## select only years of interest indexed by brood year 
 dat_NPGO <- dat_NPGO[dat_NPGO$year >= yr_frst+marine_lag &
@@ -370,8 +375,9 @@ The numbers of hatchery fish released each year is listed in a file on the proje
 
 ```{r get_hatchery_releases}
 dat_hrel <- read_csv(paste0(ex_url,fn_hrel)) 
+dat_hrel <- subset(dat_hrel, dat_hrel$year <= max(dat_STI$year))
 dat_hrel[,2] <- dat_hrel[,2]/1000
-dat_hrel 
+dat_hrel
 ```
 
 ### Combine all covariates
@@ -385,7 +391,7 @@ dat_cvrs <- Reduce(function(...) merge(..., all=TRUE),
 ## drop year col
 dat_cvrs <- dat_cvrs[,-1] 
 ## transform the covariates to z-scores
-scl_cvrs <- scale(dat_cvrs) 
+scl_cvrs <- as.matrix(scale(dat_cvrs)) 
 ## total number of covariates
 n_cov <- dim(scl_cvrs)[2] 
 ```
@@ -411,11 +417,6 @@ model {
   
   ## strength of dens depend
   beta ~ dunif(0,0.1);
-  
-  ## covariate effects
-  # for(i in 1:n_cov) { gamma[i] ~ dnorm(0,0.001) }
-  # gamma ~ dnorm(0,0.001);
-  gamma <- 0;
   
   ## AR(1) coef for proc errors
   phi ~ dunif(-0.999,0.999);
@@ -458,8 +459,7 @@ model {
   ##------------
   ## 1st brood yr requires different innovation
   ## predicted recruits in BY t
-  covar[1] <- gamma*mod_cvrs[1];
-  ln_Rkr_a[1] <- mu_Rkr_a + covar[1]; 
+  ln_Rkr_a[1] <- mu_Rkr_a;
   E_ln_Rec[1] <- ln_Sp[1] - beta*Sp[1] + ln_Rkr_a[1] + phi*innov_1;
   tot_ln_Rec[1] ~ dnorm(E_ln_Rec[1],tau_r);
   res_ln_Rec[1] <- tot_ln_Rec[1] - E_ln_Rec[1];
@@ -477,9 +477,8 @@ model {
   ## brood years 2:(n_yrs-age_min)
   for(t in 2:(n_yrs-age_min+n_fore)) {
     ## predicted recruits in BY t
-    covar[t] <- gamma*mod_cvrs[t];
-    ln_Rkr_a[t] <- mu_Rkr_a + covar[t]; 
-    E_ln_Rec[t] <- ln_Sp[t]- beta*Sp[t] + ln_Rkr_a[t] + phi*(res_ln_Rec[t-1] - covar[t-1]);
+    ln_Rkr_a[t] <- mu_Rkr_a; 
+    E_ln_Rec[t] <- ln_Sp[t]- beta*Sp[t] + ln_Rkr_a[t] + phi*res_ln_Rec[t-1];
     tot_ln_Rec[t] ~ dnorm(E_ln_Rec[t],tau_r);
     res_ln_Rec[t] <- tot_ln_Rec[t] - E_ln_Rec[t];
     ## median of total recruits
@@ -619,7 +618,7 @@ model {
   ## 1st brood yr requires different innovation
   ## predicted recruits in BY t
   # covar[1] <- inprod(gamma,scl_cvrs[1,]);
-  covar[1] <- gamma*mod_cvrs[1];
+  covar[1] <- gamma*mod_cvrs[1,];
   ln_Rkr_a[1] <- mu_Rkr_a + covar[1]; 
   E_ln_Rec[1] <- ln_Rkr_a[1] + ln_Sp[1] - beta*Sp[1] + phi*innov_1;
   tot_ln_Rec[1] ~ dnorm(E_ln_Rec[1],tau_r);
@@ -639,7 +638,7 @@ model {
   for(t in 2:(n_yrs-age_min+n_fore)) {
     ## predicted recruits in BY t
     # covar[t] <- inprod(gamma, scl_cvrs[t,]);
-    covar[t] <- gamma*mod_cvrs[t];
+    covar[t] <- gamma*mod_cvrs[t,];
     ln_Rkr_a[t] <- mu_Rkr_a + covar[t]; 
     E_ln_Rec[t] <- ln_Rkr_a[t] + ln_Sp[t]- beta*Sp[t] + phi*(res_ln_Rec[t-1]);
     tot_ln_Rec[t] ~ dnorm(E_ln_Rec[t],tau_r);
@@ -934,7 +933,7 @@ model {
   ##------------
   ## predicted recruits in BY t
   # covar[1] <- inprod(gamma,scl_cvrs[1,]);
-  covar[1] <- gamma*mod_cvrs[1];
+  covar[1] <- gamma*mod_cvrs[1,];
   ln_BH_a[1] <- mu_BH_a + covar[1]; 
   E_ln_Rec[1] <- ln_BH_a[1] + ln_Sp[1] - log(1 + beta*Sp[1]) + phi*innov_1;
   tot_ln_Rec[1] ~ dnorm(E_ln_Rec[1],tau_r);
@@ -954,7 +953,7 @@ model {
   for(t in 2:(n_yrs-age_min+n_fore)) {
     ## predicted recruits in BY t
     # covar[t] <- inprod(gamma, scl_cvrs[t,]);
-    covar[t] <- gamma*mod_cvrs[t];
+    covar[t] <- gamma*mod_cvrs[t,];
     ln_BH_a[t] <- mu_BH_a + covar[t]; 
     E_ln_Rec[t] <- ln_BH_a[t] + ln_Sp[t] - log(1 + beta*Sp[t]) + phi*(res_ln_Rec[t-1]);
     tot_ln_Rec[t] ~ dnorm(E_ln_Rec[t],tau_r);
@@ -1049,48 +1048,33 @@ Please note that the following code takes ~20 min to run on a quad-core machine 
 timer_start <- proc.time() 
 ```
 
-```{r JAGS_IO, message=FALSE, warning=FALSE, cache=TRUE}
+### Models without covariates
+
+```{r JAGS_IO_1, message=FALSE, warning=FALSE, cache=TRUE}
 ## 1. data to pass to JAGS
-dat_jags <- c("dat_age","ln_dat_esc","dat_harv","mod_cvrs","n_cov",
+dat_jags <- c("dat_age","ln_dat_esc","dat_harv",
               "n_yrs","A","age_min","age_max","age_skip","n_fore") 
 
 ## 2. model params/states for JAGS to return
-#par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a","beta","ln_Rkr_a",
-#              "gamma","lp_age","lp_esc",
-#              "Sp","Rec","tot_ln_Rec","ln_RS","pi_vec",
-#              "sigma_r","sigma_s","res_ln_Rec")
-par_jags <- c("gamma","lp_age","lp_esc")
+par_jags <- c("lp_age","lp_esc")
 
 ## 3. MCMC control params
 ## MCMC parameters
-mcmc_chains <- 4
-mcmc_length <- 3.5e5+1
-mcmc_burn <- 1e5+1
-mcmc_thin <- 100
+mcmc_chains <- 2
+mcmc_length <- 3.5e4
+mcmc_burn <- 1e4
+mcmc_thin <- 20
 ## total number of MCMC samples
 mcmc_samp <- (mcmc_length-mcmc_burn)*mcmc_chains/mcmc_thin
 
-## functions to create JAGS inits; different for each error structure
+## function to create JAGS inits
 ## Eqn 2
 init_vals_AR <- function() {
 	list(alpha=3,
 	     beta=1/exp(mean(ln_dat_esc, na.rm=TRUE)),
-	     pi_tau=1, pi_eta=rep(1,A),
-	     pi_vec=matrix(c(0.01,0.3,0.48,0.15,0.04,0.02),n_yrs-age_min+n_fore,A,byrow=TRUE),
-	     Rec_mu=log(1000),
-	     Rec_sig=0.1,
-	     tot_ln_Rec=rep(log(1000),n_yrs-age_min+n_fore),
-	     innov_1=0,
-	     phi=0.5)
-}
-## Eqn 4
-init_vals_cov_AR <- function() {
-	list(alpha=3,
-	     beta=1/exp(mean(ln_dat_esc, na.rm=TRUE)),
-	     gamma=-0.1,
 	     pi_tau=1,
 	     pi_eta=rep(1,A),
-	     pi_vec=matrix(c(0.01,0.3,0.48,0.15,0.04,0.02),n_yrs-age_min+n_fore,A,byrow=TRUE),
+	     pi_vec=matrix(c(0.02,0.3,0.47,0.15,0.04,0.02),n_yrs-age_min+n_fore,A,byrow=TRUE),
 	     Rec_mu=log(1000),
 	     Rec_sig=0.1,
 	     tot_ln_Rec=rep(log(1000),n_yrs-age_min+n_fore),
@@ -1111,20 +1095,47 @@ mod_jags <- list(data=dat_jags,
 
 ## fit AR(1) models
 mod_jags$inits <- init_vals_AR
-## dummy covars
-mod_cvrs <- rep(0, n_yrs-age_min+n_fore) 
 ## Ricker
 mod_jags$model.file <- "IPM_RK_AR.txt"
 mod_fits[[1]] <- do.call(jags.parallel, mod_jags)
 ## B-H
 mod_jags$model.file <- "IPM_BH_AR.txt"
-mod_fits[[2]] <- do.call(jags.parallel, mod_jags)
+#mod_fits[[2]] <- do.call(jags.parallel, mod_jags)
+```
+
+### Models with covariates
+
+```{r JAGS_IO_2, message=FALSE, warning=FALSE, cache=TRUE}
+## 1. data to pass to JAGS
+dat_jags <- c("dat_age","ln_dat_esc","dat_harv","mod_cvrs", # "n_cov",
+              "n_yrs","A","age_min","age_max","age_skip","n_fore") 
+mod_jags$data <- dat_jags
+
+## 2. model params/states for JAGS to return
+par_jags <- c("gamma","lp_age","lp_esc")
+mod_jags$parameters.to.save <- par_jags
+
+## function to create JAGS inits
+## Eqn 4
+init_vals_cov_AR <- function() {
+	list(alpha=1,
+	     beta=1/exp(mean(ln_dat_esc, na.rm=TRUE)),
+	     gamma=0,
+	     pi_tau=1,
+	     pi_eta=rep(1,A),
+	     pi_vec=matrix(c(0.02,0.3,0.47,0.15,0.04,0.02),n_yrs-age_min+n_fore,A,byrow=TRUE),
+	     Rec_mu=log(1000),
+	     Rec_sig=0.1,
+	     tot_ln_Rec=rep(log(1000),n_yrs-age_min+n_fore),
+	     innov_1=0,
+	     phi=0.5)
+}
 
 ## fit models with covars
 cnt <- 3
 for(i in 1:n_cov) {
   ## get covar of interest
-  mod_cvrs <- scl_cvrs[, i]
+  mod_cvrs <- scl_cvrs[, i, drop = FALSE]
   ## cnt & time stamp
   cat("Count =", cnt, "; Time =", round(((proc.time()-timer_start)/60)["elapsed"], 1), "\n",
       file="cnt_time.txt", append=TRUE)
@@ -1136,7 +1147,7 @@ for(i in 1:n_cov) {
   cnt <- cnt + 1
   ## B-H with cov
   mod_jags$model.file <- "IPM_BH_cov_AR.txt"
-  mod_fits[[cnt]] <- do.call(jags.parallel, mod_jags)
+#  mod_fits[[cnt]] <- do.call(jags.parallel, mod_jags)
   cnt <- cnt + 1
 }
 ```
