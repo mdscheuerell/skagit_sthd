@@ -30,7 +30,7 @@ br <- ba*ss/(1 + bb*ss)
 
 ## plots
 dev.new(height=6.4, width=3.25)
-# pdf("SR_schematics.pdf", height=6.4, width=3.25)
+# pdf("SR_schematics_2.pdf", height=6.4, width=3.25)
 
 layout(matrix(c(1,0,2),3,1), heights=lcm(c(3,0.3,3)*2.54), widths=lcm(3*2.54))
 par(mai=c(0.4,0.4,0.2,0.2), omi=c(0,0,0,0.25))
@@ -54,7 +54,7 @@ segments(0, 0, 1900, ra*1900, lty="dashed")
 text(2000, ra*2000, expression(alpha), adj=c(0.5,0.5))
 ## MSY
 segments(rsy,0,rsy,ra*rsy/exp(rb*rsy), lty="dashed")
-text(rsy, 0, expression(frac(1-italic(W)(frac(italic(e),alpha)),beta)), adj=c(0.5,1.2), xpd=NA)
+text(rsy, 0, expression(frac(1-italic(W)~bgroup("(",frac(italic(e),alpha),")"),beta)), adj=c(0.5,1.1), xpd=NA)
 segments(par()$usr[1],ra*rsy/exp(rb*rsy),rsy,ra*rsy/exp(rb*rsy), lty="dashed")
 text(0, ra*rsy/exp(rb*rsy), expression(italic(R)[MSY]), pos=2, xpd=NA)
 ## K
