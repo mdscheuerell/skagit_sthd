@@ -390,7 +390,7 @@ The last thing we will do is combine the covariates into one file and standardiz
 ```{r combine_covars}
 ## covariate(s)
 dat_cvrs <- Reduce(function(...) merge(..., all = TRUE),
-                   list(dat_flow_wtr,dat_flow_sum,dat_NPGO,dat_STI,dat_hrel))
+                   list(dat_flow_sum,dat_flow_wtr,dat_NPGO,dat_STI,dat_hrel))
 ## drop year col
 dat_cvrs <- dat_cvrs[,-1] 
 #dat_cvrs <- matrix(0, 37, 5) 
@@ -464,7 +464,7 @@ model {
   ## 1st brood yr requires different innovation
   ## predicted recruits in BY t
   ln_Rkr_a[1] <- mu_Rkr_a;
-  E_ln_Rec[1] <- ln_Sp[1] - beta*Sp[1] + ln_Rkr_a[1] + phi*innov_1;
+  E_ln_Rec[1] <- ln_Rkr_a[1] + ln_Sp[1] - beta*Sp[1] + phi*innov_1;
   tot_ln_Rec[1] ~ dnorm(E_ln_Rec[1],tau_r);
   res_ln_Rec[1] <- tot_ln_Rec[1] - E_ln_Rec[1];
   ## median of total recruits
@@ -482,7 +482,7 @@ model {
   for(t in 2:(n_yrs-age_min+n_fore)) {
     ## predicted recruits in BY t
     ln_Rkr_a[t] <- mu_Rkr_a; 
-    E_ln_Rec[t] <- ln_Sp[t]- beta*Sp[t] + ln_Rkr_a[t] + phi*res_ln_Rec[t-1];
+    E_ln_Rec[t] <- ln_Rkr_a[t] + ln_Sp[t] - beta*Sp[t] + phi*res_ln_Rec[t-1];
     tot_ln_Rec[t] ~ dnorm(E_ln_Rec[t],tau_r);
     res_ln_Rec[t] <- tot_ln_Rec[t] - E_ln_Rec[t];
     ## median of total recruits
@@ -547,7 +547,7 @@ model {
   ## first cal yr is first brood yr
   for(t in 1:(n_yrs+n_fore)) {
     ## obs model for spawners
-    Sp[t] <- max(1,tot_Run[t] - dat_harv[t]);
+    Sp[t] <- max(10,tot_Run[t] - dat_harv[t]);
     ln_Sp[t] <- log(Sp[t]);
     ln_dat_esc[t] ~ dnorm(ln_Sp[t], tau_s);
     lp_esc[t] <- logdensity.norm(ln_dat_esc[t],ln_Sp[t], tau_s);
@@ -577,9 +577,9 @@ model {
   beta ~ dunif(0,0.01);
   
   ## covariate effects
-  # for(i in 1:n_cov) { gamma[i] ~ dnorm(0,0.001) }
-  gamma ~ dnorm(0,0.001)
-  
+  # for(i in 1:n_cov) { gamma[i] ~ dnorm(0,0.01) }
+  gamma ~ dnorm(0,0.01);
+
   ## AR(1) coef for proc errors
   phi ~ dunif(-0.999,0.999);
   
@@ -709,7 +709,7 @@ model {
   ## first cal yr is first brood yr
   for(t in 1:(n_yrs+n_fore)) {
     ## obs model for spawners
-    Sp[t] <- max(1,tot_Run[t] - dat_harv[t]);
+    Sp[t] <- max(10,tot_Run[t] - dat_harv[t]);
     ln_Sp[t] <- log(Sp[t]);
     ln_dat_esc[t] ~ dnorm(ln_Sp[t], tau_s);
     lp_esc[t] <- logdensity.norm(ln_dat_esc[t],ln_Sp[t], tau_s);
@@ -863,7 +863,7 @@ model {
   ## first cal yr is first brood yr
   for(t in 1:(n_yrs+n_fore)) {
     ## obs model for spawners
-    Sp[t] <- max(1,tot_Run[t] - dat_harv[t]);
+    Sp[t] <- max(10,tot_Run[t] - dat_harv[t]);
     ln_Sp[t] <- log(Sp[t]);
     ln_dat_esc[t] ~ dnorm(ln_Sp[t], tau_s);
     lp_esc[t] <- logdensity.norm(ln_dat_esc[t],ln_Sp[t], tau_s);
@@ -893,9 +893,9 @@ model {
   beta ~ dunif(0,0.01);
   
   ## covariate effects
-  # for(i in 1:n_cov) { gamma[i] ~ dnorm(0,0.001) }
-  gamma ~ dnorm(0,0.001)
-  
+  # for(i in 1:n_cov) { gamma[i] ~ dnorm(0,0.01) }
+  gamma ~ dnorm(0,0.01);
+
   ## AR(1) coef for proc errors
   phi ~ dunif(-0.999,0.999);
   
@@ -1024,7 +1024,7 @@ model {
   ## first cal yr is first brood yr
   for(t in 1:(n_yrs+n_fore)) {
     ## obs model for spawners
-    Sp[t] <- max(1,tot_Run[t] - dat_harv[t]);
+    Sp[t] <- max(10,tot_Run[t] - dat_harv[t]);
     ln_Sp[t] <- log(Sp[t]);
     ln_dat_esc[t] ~ dnorm(ln_Sp[t], tau_s);
     lp_esc[t] <- logdensity.norm(ln_dat_esc[t],ln_Sp[t], tau_s);
@@ -1045,19 +1045,12 @@ The last thing we need to do before fitting the model in JAGS is to specify:
 2. the model parameters and states that we want JAGS to return;
 3. the MCMC control parameters.
 
-Please note that the following code takes ~20 min to run on a quad-core machine with 3.5 GHz Intel processors.
 
-```{r start_timer, include = FALSE}
-## start timer
-timer_start <- proc.time() 
-```
-
-### Models without covariates
-
-```{r JAGS_IO_1, message = FALSE, warning = FALSE, cache = TRUE}
+```{r jags_etup}
 ## 1. data to pass to JAGS
-dat_jags <- c("dat_age","ln_dat_esc","dat_harv",
-              "n_yrs","A","age_min","age_max","age_skip","n_fore") 
+dat_jags <- c("ln_dat_esc", "dat_age", "dat_harv",
+              "A", "age_min", "age_max", "age_skip",
+              "n_yrs", "n_fore") 
 
 ## 2. model params/states for JAGS to return
 par_jags <- c("lp_age","lp_esc")
@@ -1070,11 +1063,22 @@ mcmc_burn <- 1e4
 mcmc_thin <- 20
 ## total number of MCMC samples
 mcmc_samp <- (mcmc_length-mcmc_burn)*mcmc_chains/mcmc_thin
+```
 
+```{r start_timer, include = FALSE}
+## start timer
+timer_start <- proc.time() 
+```
+
+### Models without covariates
+
+Please note that the following code takes ~20 min to run on a quad-core machine with 3.5 GHz Intel processors.
+
+```{r JAGS_IO_1, message = FALSE, warning = FALSE, cache = TRUE}
 ## function to create JAGS inits
 ## Eqn 2
 init_vals_AR <- function() {
-	list(alpha = 2,
+	list(alpha = 2.0,
 	     beta = 1/exp(mean(ln_dat_esc, na.rm = TRUE)),
 	     pi_tau = 1,
 	     pi_eta = rep(1,A),
@@ -1082,7 +1086,7 @@ init_vals_AR <- function() {
 	                     byrow = TRUE),
 	     Rec_mu = log(1000),
 	     Rec_sig = 0.1,
-	     tot_ln_Rec = rep(log(1000),n_yrs-age_min+n_fore),
+	     tot_ln_Rec = rep(log(1000), n_yrs - age_min + n_fore),
 	     innov_1 = 0,
 	     phi = 0.5)
 }
@@ -1123,16 +1127,16 @@ mod_jags$parameters.to.save <- par_jags
 ## function to create JAGS inits
 ## Eqn 4
 init_vals_cov_AR <- function() {
-	list(alpha = 3,
+	list(alpha = 2.0,
 	     beta = 1/exp(mean(ln_dat_esc, na.rm = TRUE)),
-	     gamma = -0.1,
+	     gamma = 0,
 	     pi_tau = 1,
 	     pi_eta = rep(1,A),
 	     pi_vec = matrix(c(0.02,0.3,0.48,0.15,0.04,0.01), n_yrs-age_min+n_fore, A,
 	                     byrow = TRUE),
 	     Rec_mu = log(1000),
 	     Rec_sig = 0.1,
-	     tot_ln_Rec = rep(log(1000),n_yrs-age_min+n_fore),
+	     tot_ln_Rec = rep(log(1000), n_yrs - age_min + n_fore),
 	     innov_1 = 0,
 	     phi = 0.5)
 }
@@ -1276,7 +1280,7 @@ rh <- mod_fit$BUGSoutput$summary[,"Rhat"]
 ## histogram of Rhat values for all parameters
 par(mai = c(0.9,0.9,0.3,0.1))
 hist(rh, breaks = seq(1,ceiling(max(rh)/0.01)*0.01,by = 0.01),main = "",
-     col = rgb(0,0,255,alpha = 50,maxColorValue = 255),border = "blue3",xlab = expression(italic(R[hat])))
+col = rgb(0,0,255,alpha = 50,maxColorValue = 255),border = "blue3",xlab = expression(italic(R[hat])))
 ## Rhat values > threshold
 bad_Rhat <- rh[rh>Rhat_thresh]
 ## prop of params with Rhat > threshold
@@ -1299,9 +1303,9 @@ Here is a table of summary statistics for some of the model parameters.
 
 ```{r tbl_summary_stats}
 tbl_smry <- mod_fit$BUGSoutput$summary[c("alpha","E_BH_a","beta","gamma"),
-                                       c("mean","sd","2.5%","50%","97.5%")]
+c("mean","sd","2.5%","50%","97.5%")]
 #rownames(tbl_smry)[seq(n_cov)+2] <- colnames(dat_cvrs)                                 
-print(tbl_smry,digits = 3,quote = FALSE,justify = "right")
+print(tbl_smry, digits = 3, quote = FALSE, justify = "right")
 ```
 
 ### Spawner-recruit relationship
@@ -1323,6 +1327,7 @@ aa <- apply(mod_fit$BUGSoutput$sims.list$ln_BH_a,2,median)
 # bb <- apply(mod_fit$BUGSoutput$sims.list$beta,2,median)
 # aa <- median(mod_fit$BUGSoutput$sims.list$alpha)
 bb <- median(mod_fit$BUGSoutput$sims.list$beta)
+
 ## empty plot space for spawner-recruit relationships
 dd <- 3000
 yM <- Re2prec(max(rDat),"ceiling",dd)
@@ -1330,15 +1335,16 @@ yM <- Re2prec(max(rDat),"ceiling",dd)
 xM <- Re2prec(max(sDat),"ceiling",dd)
 par(mai = c(0.8,0.8,0.1,0.1), omi = c(0,0,0,0))
 plot(sDat[2,],rDat[2,], xlim = c(0,xM), ylim = c(0,yM), pch = 16, col = "blue3", type = "n",
-	 xaxs = "i", yaxs = "i", ylab = "Recruits (1000s)", xlab = "Spawners (1000s)", cex.lab = 1.2,
-	 xaxt = "n", yaxt = "n")
+     xaxs = "i", yaxs = "i", ylab = "Recruits (1000s)", xlab = "Spawners (1000s)", cex.lab = 1.2,
+     xaxt = "n", yaxt = "n")
 axis(1, at = seq(0,xM,dd*2), labels = seq(0,xM,dd*2)/1000)
 axis(2, at = seq(0,yM,dd*2), labels = seq(0,yM,dd*2)/1000)
 for(i in 1:length(aa)) { lines(exp(aa[i])*seq(0,xM)/(1+bb*seq(0,xM)), col = "darkgray") }
 #for(i in 1:length(aa)) { lines(aa[i]*seq(0,xM)/(1+bb*seq(0,xM)), col = "darkgray") }
 # lines(aa*seq(0,xM)/(1+bb*seq(0,xM)), col = "darkgray")
-## add S-R estimates and medians
 abline(a = 0,b = 1,lty = "dashed")
+
+## add S-R estimates and medians
 nCB <- n_yrs-age_max
 points(sDat[2,1:nCB],rDat[2,1:nCB], xlim = c(0,xM), ylim = c(0,yM), pch = 16, col = "blue3")
 segments(sDat[2,1:nCB],rDat[1,1:nCB],sDat[2,1:nCB],rDat[3,1:nCB], col = "blue3")
@@ -1361,13 +1367,13 @@ R_alpha_est <- mod_fit$BUGSoutput$sims.list$alpha
 alphaCI <- quantile(R_alpha_est,c(0.025,0.5,0.975))
 R_alpha_est[R_alpha_est>a_thresh] <- a_thresh
 hist(R_alpha_est,freq = FALSE,xlab = "",main = "",breaks = seq(0,a_thresh+1,2),
-     col = clr, border = "blue3", ylab = "", cex.lab = 1.2, yaxt = "n")
+col = clr, border = "blue3", ylab = "", cex.lab = 1.2, yaxt = "n")
 aHt <- (par()$usr[4]-par()$usr[3])/12
 arrows(alphaCI,par()$usr[3],alphaCI,par()$usr[3]-aHt,
-       code = 1,length = 0.05,xpd = NA,col = "blue3",lwd = 1.5)
+code = 1,length = 0.05,xpd = NA,col = "blue3",lwd = 1.5)
 mtext(expression(Instrinsic~productivity~(alpha)), 1, line = 3, cex = 1)
 text(x = par()$usr[1]+par()$pin[2]/par()$pin[1]*offSet*diff(par()$usr[1:2]),
-	 y = par()$usr[4]-offSet*diff(par()$usr[3:4]),"(b)")
+y = par()$usr[4]-offSet*diff(par()$usr[3:4]),"(b)")
 
 ## posterior for K
 par(mai = c(0.8,0.4,0.3,0.1))
@@ -1378,20 +1384,20 @@ R_b_est <- R_b_est[R_b_est > 0]
 R_b_CI <- quantile(R_b_est,c(0.025,0.5,0.975))
 R_b_est[R_b_est>12e3] <- 12e3
 brks <- seq(Re2prec(min(R_b_est),"floor",1000),
-            Re2prec(max(R_b_est),"ceiling",1000),
-            length.out = length(seq(0,a_thresh,2)))
+Re2prec(max(R_b_est),"ceiling",1000),
+length.out = length(seq(0,a_thresh,2)))
 hist(R_b_est, freq = FALSE, breaks = brks, col = clr, border = "blue3",
-	 xlab = "", xaxt = "n", yaxt = "n",
-	 main = "", ylab = "", cex.lab = 1.2)
+xlab = "", xaxt = "n", yaxt = "n",
+main = "", ylab = "", cex.lab = 1.2)
 axis(1, at = seq(Re2prec(min(R_b_est),"floor",1000),
-               Re2prec(max(R_b_est),"ceiling",1000),
-               2000))
+Re2prec(max(R_b_est),"ceiling",1000),
+2000))
 aHt <- (par()$usr[4]-par()$usr[3])/12
 arrows(R_b_CI,par()$usr[3],R_b_CI,par()$usr[3]-aHt,
-       code = 1,length = 0.05,xpd = NA,col = "blue3",lwd = 1.5)
+code = 1,length = 0.05,xpd = NA,col = "blue3",lwd = 1.5)
 mtext(expression(Carrying~capacity~(italic(K))), 1, line = 3, cex = 1)
 text(x = par()$usr[1]+par()$pin[2]/par()$pin[1]*offSet*diff(par()$usr[1:2]),
-	 y = par()$usr[4]-offSet*diff(par()$usr[3:4]),"(c)")
+y = par()$usr[4]-offSet*diff(par()$usr[3:4]),"(c)")
 ```
 
 ### Covariate effects
@@ -1410,36 +1416,36 @@ cov_names <- expression(paste("H releases (",10^3,")"))
 t_idx <- seq(yr_frst,length.out = n_yrs-age_min+n_fore)
 ## plot covar ts
 plot(t_idx, dat_cvrs[seq(length(t_idx)),"Hrel"], xlab = "Brood year", ylab = "",
-     main = "", cex.axis = 1.2, pch = 16, col = "blue3", type = "o", bty = "L")
+main = "", cex.axis = 1.2, pch = 16, col = "blue3", type = "o", bty = "L")
 text(x = par()$usr[1]+par()$pin[2]/par()$pin[1]*offSet*diff(par()$usr[1:2]),
-     y = par()$usr[4]-offSet*diff(par()$usr[3:4]),paste0("(",letters[1],")"), cex = 1.2)
+y = par()$usr[4]-offSet*diff(par()$usr[3:4]),paste0("(",letters[1],")"), cex = 1.2)
 mtext(side = 2, cov_names, line = 3, cex = 1.2)
 ## plot covar effect
 hist(c_est,
-     freq = FALSE,breaks = brks,col = clr,border = "blue3",
-     xlab = "Effect size", yaxt = "n", main = "", ylab = "", cex.axis = 1.2)
+freq = FALSE,breaks = brks,col = clr,border = "blue3",
+xlab = "Effect size", yaxt = "n", main = "", ylab = "", cex.axis = 1.2)
 c_CI <- quantile(c_est,c(0.025,0.5,0.975))
 aHt <- (par()$usr[4]-par()$usr[3])/20
 arrows(c_CI,par()$usr[3]-0.005,c_CI,par()$usr[3]-aHt,
-       code = 1,length = 0.05,xpd = NA,col = "blue3",lwd = 1.5)
+code = 1,length = 0.05,xpd = NA,col = "blue3",lwd = 1.5)
 abline(v = 0, lty = "dashed")
 text(x = par()$usr[1]+par()$pin[2]/par()$pin[1]*offSet*diff(par()$usr[1:2]), cex = 1.2,
-     y = par()$usr[4]-offSet*diff(par()$usr[3:4]),paste0("(",letters[2],")"))
+y = par()$usr[4]-offSet*diff(par()$usr[3:4]),paste0("(",letters[2],")"))
 ```
 
 ### Total population size
 
-Here is our estimate of the total run size (i.e., catch + escapement) over time, which includes a forecast for 2016. The black points are the data, the blue line is the median posterior estimate, and the shaded region is the 95% credible interval. Note that the y-axis is on a log scale.
+Here is our estimate of the total run size (i.e., catch + escapement) over time, which includes a forecast for `r yr_last+n_fore`. The black points are the data, the blue line is the median posterior estimate, and the shaded region is the 95% credible interval. Note that the y-axis is on a log scale.
 
 ```{r plot_run_size, fig.width = 6, fig.height = 4.5, fig.pos = "placeHere"}
-pDat <- apply(mod_fit$BUGSoutput$sims.list$Sp,2,quantile,probs = CI_vec)
-pDat <- pDat + matrix(dat_harv,length(CI_vec),n_yrs+n_fore,byrow = TRUE)
-t_idx_f <- seq(yr_frst,length.out = n_yrs+n_fore)
+pDat <- apply(mod_fit$BUGSoutput$sims.list$Sp, 2, quantile, probs = CI_vec)
+pDat <- pDat + matrix(dat_harv, length(CI_vec), n_yrs+n_fore, byrow = TRUE)
+t_idx_f <- seq(yr_frst, length.out = n_yrs+n_fore)
 ypMin <- min(pDat)
 ypMax <- max(pDat)
 par(mai = c(0.8,0.8,0.1,0.1), omi = c(0.5,0.2,0.1,0.2))
-plot(t_idx_f,pDat[3,], ylim = c(ypMin,ypMax), type = "n", log = "y", xaxt = "n", yaxt = "n",
-	 xlab = "Year", ylab = "Catch + escapement", main = "", cex.lab = 1.2)
+plot(t_idx_f, pDat[3,], ylim = c(ypMin,ypMax), type = "n", log = "y", xaxt = "n", yaxt = "n",
+xlab = "Year", ylab = "Catch + escapement", main = "", cex.lab = 1.2)
 polygon(c(t_idx_f,rev(t_idx_f)),c(pDat[3,],rev(pDat[1,])), col = clr, border = NA)
 lines(t_idx_f, pDat[2,], col = "blue3", lwd = 2)
 points(t_idx_f, exp(ln_dat_esc)+dat_harv, pch = 16, cex = 1)
@@ -1447,11 +1453,11 @@ axis(1,at = seq(1980,2015,5))
 axis(2,at = c(4000,8000,16000))
 ```
 
-Here are several percentiles for the 2016 forecast for the total run size (i.e., catch + escapement).
+Here are several percentiles for the `r yr_last+n_fore` forecast for the total run size (i.e., catch + escapement).
 
 ```{r forecast_2016}
 data.frame(forecast = round(quantile(mod_fit$BUGSoutput$sims.list$Sp[,n_yrs+n_fore],
-                                   probs = c(0.025,0.25,0.5,0.75,0.975))))
+                                     probs = c(0.025,0.25,0.5,0.75,0.975))))
 ```
 
 ### Innovations
@@ -1459,13 +1465,13 @@ data.frame(forecast = round(quantile(mod_fit$BUGSoutput$sims.list$Sp[,n_yrs+n_fo
 Here is the time series of the so-called "innovations", which are the residuals from the process model. They give some indication of population productivity after accounting for the effects of density dependence.
 
 ```{r plot_innovations, fig.width = 6, fig.height = 4, fig.pos = "placeHere"}
-t_idx_a <- seq(yr_frst,length.out = n_yrs-age_min+n_fore)
+t_idx_a <- seq(yr_frst, length.out = n_yrs-age_min+n_fore)
 pDat <- apply(mod_fit$BUGSoutput$sims.list$res_ln_Rec,2,quantile,CI_vec)
 ypMin <- min(pDat)
 ypMax <- max(pDat)
 par(mai = c(0.8,0.8,0.1,0.1), omi = c(0,0.2,0.1,0.2))
 plot(t_idx_a,pDat[3,], ylim = c(ypMin,ypMax), type = "n", #log = "y",
-	 xlab = "Brood year", ylab = "Innovations", main = "", cex.lab = 1.2)
+xlab = "Brood year", ylab = "Innovations", main = "", cex.lab = 1.2)
 abline(h = 0, lty = "dashed")
 polygon(c(t_idx_a,rev(t_idx_a)),c(pDat[3,],rev(pDat[1,])), col = clr, border = NA)
 lines(t_idx_a, pDat[2,], col = "blue3", lwd = 2)

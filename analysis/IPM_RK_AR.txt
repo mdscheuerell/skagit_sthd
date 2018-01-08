@@ -11,7 +11,7 @@ model {
   E_Rkr_a <- mu_Rkr_a + sigma_r/(2 - 2*phi^2);
   
   ## strength of dens depend
-  beta ~ dunif(0,0.1);
+  beta ~ dunif(0,0.01);
   
   ## AR(1) coef for proc errors
   phi ~ dunif(-0.999,0.999);
@@ -55,7 +55,7 @@ model {
   ## 1st brood yr requires different innovation
   ## predicted recruits in BY t
   ln_Rkr_a[1] <- mu_Rkr_a;
-  E_ln_Rec[1] <- ln_Sp[1] - beta*Sp[1] + ln_Rkr_a[1] + phi*innov_1;
+  E_ln_Rec[1] <- ln_Rkr_a[1] + ln_Sp[1] - beta*Sp[1] + phi*innov_1;
   tot_ln_Rec[1] ~ dnorm(E_ln_Rec[1],tau_r);
   res_ln_Rec[1] <- tot_ln_Rec[1] - E_ln_Rec[1];
   ## median of total recruits
@@ -73,7 +73,7 @@ model {
   for(t in 2:(n_yrs-age_min+n_fore)) {
     ## predicted recruits in BY t
     ln_Rkr_a[t] <- mu_Rkr_a; 
-    E_ln_Rec[t] <- ln_Sp[t]- beta*Sp[t] + ln_Rkr_a[t] + phi*res_ln_Rec[t-1];
+    E_ln_Rec[t] <- ln_Rkr_a[t] + ln_Sp[t] - beta*Sp[t] + phi*res_ln_Rec[t-1];
     tot_ln_Rec[t] ~ dnorm(E_ln_Rec[t],tau_r);
     res_ln_Rec[t] <- tot_ln_Rec[t] - E_ln_Rec[t];
     ## median of total recruits
@@ -138,7 +138,7 @@ model {
   ## first cal yr is first brood yr
   for(t in 1:(n_yrs+n_fore)) {
     ## obs model for spawners
-    Sp[t] <- max(1,tot_Run[t] - dat_harv[t]);
+    Sp[t] <- max(10,tot_Run[t] - dat_harv[t]);
     ln_Sp[t] <- log(Sp[t]);
     ln_dat_esc[t] ~ dnorm(ln_Sp[t], tau_s);
     lp_esc[t] <- logdensity.norm(ln_dat_esc[t],ln_Sp[t], tau_s);
