@@ -6,7 +6,7 @@ model {
   ## PRIORS
   ##--------
   ## alpha = exp(a) = intrinsic productivity
-  alpha ~ dunif(0.1,20);
+  alpha ~ dunif(0.1,15);
   mu_Rkr_a <- log(alpha);
   E_Rkr_a <- mu_Rkr_a + sigma_r/(2 - 2*phi^2);
   
@@ -21,7 +21,7 @@ model {
   phi ~ dunif(-0.999,0.999);
   
   ## process variance for recruits model
-  sd_r ~ dunif(0.001,20);
+  sd_r ~ dunif(0.001,10);
   tau_r <- pow(sd_r,-2);
   sigma_r <- pow(sd_r,2);
   
@@ -29,9 +29,18 @@ model {
   innov_1 ~ dnorm(0,tau_r*(1-phi*phi));
   
   ## obs variance for spawners
-  sd_s ~ dunif(0.001,20);
+  sd_s ~ dunif(0.001,10);
   tau_s <- pow(sd_s,-2);
   sigma_s <- pow(sd_s,2);
+  
+  ## maturity schedule
+  ## unif vec for Dirch prior
+  for(i in 1:A) { theta[i] <- 1 }
+  ## hyper-mean for maturity
+  pi_eta ~ ddirch(theta);
+  ## hyper-prec for maturity
+  pi_tau ~ dunif(0.01,100);
+  for(t in 1:(n_yrs-age_min+n_fore)) { pi_vec[t,1:A] ~ ddirch(pi_eta*pi_tau) }
   
   ## unprojectable early recruits;
   ## hyper mean across all popns
@@ -43,15 +52,6 @@ model {
   ## multipliers for unobservable total runs
   ttl_run_mu ~ dunif(1,5);
   ttl_run_tau ~ dunif(1,20);
-  
-  ## maturity schedule
-  ## unif vec for Dirch prior
-  for(i in 1:A) { theta[i] <- 1 }
-  ## hyper-mean for maturity
-  pi_eta ~ ddirch(theta);
-  ## hyper-prec for maturity
-  pi_tau ~ dunif(0.001,1e3);
-  for(t in 1:(n_yrs-age_min+n_fore)) { pi_vec[t,1:A] ~ ddirch(pi_eta*pi_tau) }
   
   ##------------
   ## LIKELIHOOD
@@ -81,7 +81,7 @@ model {
     # covar[t] <- inprod(gamma, scl_cvrs[t,]);
     covar[t] <- gamma*mod_cvrs[t];
     ln_Rkr_a[t] <- mu_Rkr_a + covar[t]; 
-    E_ln_Rec[t] <- ln_Rkr_a[t] + ln_Sp[t]- beta*Sp[t] + phi*res_ln_Rec[t-1];
+    E_ln_Rec[t] <- ln_Rkr_a[t] + ln_Sp[t] - beta*Sp[t] + phi*res_ln_Rec[t-1];
     tot_ln_Rec[t] ~ dnorm(E_ln_Rec[t],tau_r);
     res_ln_Rec[t] <- tot_ln_Rec[t] - E_ln_Rec[t];
     ## median of total recruits
@@ -116,7 +116,7 @@ model {
     }
     ## total run size
     tot_Run[i+age_min+age_skip] <- sum(Run[i,1:A]);
-    # predicted age-prop vec for multinom
+    ## predicted age-prop vec for multinom
     for(a in 1:A) {
       age_v[i,a] <- Run[i,a] / tot_Run[i+age_min];
     }
@@ -146,7 +146,7 @@ model {
   ## first cal yr is first brood yr
   for(t in 1:(n_yrs+n_fore)) {
     ## obs model for spawners
-    Sp[t] <- max(10,tot_Run[t] - dat_harv[t]);
+    Sp[t] <- max(1,tot_Run[t] - dat_harv[t]);
     ln_Sp[t] <- log(Sp[t]);
     ln_dat_esc[t] ~ dnorm(ln_Sp[t], tau_s);
     lp_esc[t] <- logdensity.norm(ln_dat_esc[t],ln_Sp[t], tau_s);
