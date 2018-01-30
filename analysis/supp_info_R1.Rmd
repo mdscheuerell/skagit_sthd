@@ -20,7 +20,7 @@ This is version `r paste0('0.',format(Sys.time(), '%y.%m.%d'))`.
 ***
 
 ```{r set_options, echo = FALSE, message = FALSE}
-options(width = 100)
+options(width = 100, try.outFile = stdout())
 knitr::opts_chunk$set(message = FALSE)
 set.seed(123)
 if(file.exists("cnt_time.txt")) {
@@ -151,7 +151,7 @@ hrel_lag <- 2
 ## number of years of forecasts
 n_fore <- 0
 
-## upper threshold for Gelman & Rubin's (1992) potential scale reduction factor (Rhat).
+## threshold for Gelman & Rubin's (1992) potential scale reduction factor (Rhat).
 Rhat_thresh <- 1.1
 
 ## URL for example data files
@@ -189,7 +189,8 @@ A <- age_max-age_min+1
 if(n_fore > 0) {
   dat_age <- rbind(dat_age,
                    matrix(0, n_fore, A,
-                          dimnames = list(n_yrs+seq(n_fore),colnames(dat_age))))
+                          dimnames = list(n_yrs+seq(n_fore),
+                                          colnames(dat_age))))
 }
 ## total num of age obs by cal yr
 dat_age[,"sum"] <- apply(dat_age, 1, sum)
@@ -254,7 +255,7 @@ Lastly, we will extract the actual flow data for the years of interest and inspe
 ```{r get_flows}
 ## flow data for years of interest
 dat_flow <-  read_tsv(flow_url, col_names = FALSE, col_types = "ciDdc", skip = max(hdr_flow)+2)
-colnames(dat_flow) <- unlist(strsplit(tolower(flow_raw[max(hdr_flow)+1]), split = "\\s+"))
+colnames(dat_flow) <- unlist(strsplit(tolower(flow_raw[max(hdr_flow)+1]),split = "\\s+"))
 head(dat_flow)
 ```
 
@@ -369,7 +370,8 @@ cui <- dat_CUI[dat_CUI$yr >= yr_frst+marine_lag & dat_CUI$yr <= yr_last-age_min+
 ## calculate cumulative upwelling by year
 cum_CUI <- tapply(cui$Index, cui$yr, cumsum)
 ## calc STI for each year
-dat_STI <- data.frame(year = seq(yr_frst,yr_last-age_min+n_fore),STI = sapply(cum_CUI,get_STI))
+dat_STI <- data.frame(year = seq(yr_frst,yr_last-age_min+n_fore),
+                      STI = sapply(cum_CUI,get_STI))
 ```
 
 ### Hatchery releases
@@ -425,28 +427,30 @@ model {
   ## PRIORS
   ##--------
   ## alpha = exp(a) = intrinsic productivity
-  alpha ~ dunif(0.1,20);
+  alpha ~ dnorm(0,10) T(0,);
   mu_Rkr_a <- log(alpha);
   E_Rkr_a <- mu_Rkr_a + sigma_r/(2 - 2*phi^2);
   
   ## strength of dens depend
-  beta ~ dunif(0,0.01);
+#  beta ~ dunif(0,0.01);
+  beta_inv ~ dnorm(0, 1e-9) T(0,);
+  beta <- 1/beta_inv;
   
   ## AR(1) coef for proc errors
   phi ~ dunif(-0.999,0.999);
   
   ## process variance for recruits model
-  sd_r ~ dunif(0.001,10);
-  tau_r <- pow(sd_r,-2);
-  sigma_r <- pow(sd_r,2);
+#  sd_r ~ dnorm(0, 2e-2) T(0,);
+  sigma_r ~ dnorm(0, 2e-2) T(0,);
+  tau_r <- 1/sigma_r;
   
   ## innovation in first year
   innov_1 ~ dnorm(0,tau_r*(1-phi*phi));
   
   ## obs variance for spawners
-  sd_s ~ dunif(0.001,10);
-  tau_s <- pow(sd_s,-2);
-  sigma_s <- pow(sd_s,2);
+#  sd_s ~ dunif(0.001,10);
+  tau_s <- 1/sigma_s;
+  sigma_s ~ dnorm(0, 2e-2) T(0,);
   
   ## maturity schedule
   ## unif vec for Dirch prior
@@ -454,9 +458,9 @@ model {
   ## hyper-mean for maturity
   pi_eta ~ ddirch(theta);
   ## hyper-prec for maturity
-  pi_tau ~ dunif(0.01,100);
+  pi_tau ~ dnorm(0, 0.01) T(0,);
   for(t in 1:(n_yrs-age_min+n_fore)) { pi_vec[t,1:A] ~ ddirch(pi_eta*pi_tau) }
-  
+
   ## unprojectable early recruits;
   ## hyper mean across all popns
   Rec_mu ~ dnorm(0,0.001);
@@ -465,8 +469,16 @@ model {
   ## precision across all popns
   Rec_tau <- pow(Rec_sig,-2);
   ## multipliers for unobservable total runs
-  ttl_run_mu ~ dunif(1,5);
-  ttl_run_tau ~ dunif(1,20);
+#  ttl_run_mu ~ dunif(1,5);
+#  ttl_run_tau ~ dunif(1,20);
+  
+  ## get total cal yr returns for first age_min yrs
+  for(i in 1:(age_min+age_skip)) {
+#    ln_tot_Run[i] ~ dnorm(ttl_run_mu*Rec_mu,Rec_tau/ttl_run_tau);
+#    tot_Run[i] <- exp(ln_tot_Run[i]);
+    tot_Run_early[i] ~ dnorm(0,1e-5) I(0, 5e4);
+    tot_Run[i] <- tot_Run_early[i];
+  }
   
   ##------------
   ## LIKELIHOOD
@@ -485,7 +497,8 @@ model {
   
   ## brood-yr recruits by age
   for(a in 1:A) {
-    Rec[1,a] <- max(1,tot_Rec[1] * pi_vec[1,a]);
+#    Rec[1,a] <- max(1,tot_Rec[1] * pi_vec[1,a]);
+    Rec[1,a] <- tot_Rec[1] * pi_vec[1,a];
   }
   
   ## brood years 2:(n_yrs-age_min)
@@ -501,15 +514,10 @@ model {
     ln_RS[t] <- tot_ln_Rec[t] - ln_Sp[t];
     ## brood-yr recruits by age
     for(a in 1:A) {
-      Rec[t,a] <- max(1,tot_Rec[t] * pi_vec[t,a]);
+#      Rec[t,a] <- max(1,tot_Rec[t] * pi_vec[t,a]);
+      Rec[t,a] <- tot_Rec[t] * pi_vec[t,a];
     }
   } ## end t loop over year
-  
-  ## get total cal yr returns for first age_min yrs
-  for(i in 1:(age_min+age_skip)) {
-    ln_tot_Run[i] ~ dnorm(ttl_run_mu*Rec_mu,Rec_tau/ttl_run_tau);
-    tot_Run[i] <- exp(ln_tot_Run[i]);
-  }
   
   ## get predicted calendar year returns by age
   ## matrix Run has dim [(n_yrs-age_min) x A]
@@ -533,7 +541,7 @@ model {
     }
     ## multinomial for age comp
     dat_age[i,1:A] ~ dmulti(age_v[i,1:A],dat_age[i,A+1]);
-    lp_age[i] <- logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]);
+    lp_age[i] <- max(0, logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]));
   }
   
   ## step 2: info from complete broods
@@ -550,7 +558,7 @@ model {
     }
     ## multinomial for age comp
     dat_age[i,1:A] ~ dmulti(age_v[i,1:A],dat_age[i,A+1]);
-    lp_age[i] <- logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]);
+    lp_age[i] <- max(0, logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]));
   }
   
   ## get predicted calendar year spawners
@@ -594,17 +602,17 @@ model {
   phi ~ dunif(-0.999,0.999);
   
   ## process variance for recruits model
-  sd_r ~ dunif(0.001,10);
-  tau_r <- pow(sd_r,-2);
-  sigma_r <- pow(sd_r,2);
+#  sd_r ~ dnorm(0, 2e-2) T(0,);
+  sigma_r ~ dnorm(0, 2e-2) T(0,);
+  tau_r <- 1/sigma_r;
   
   ## innovation in first year
   innov_1 ~ dnorm(0,tau_r*(1-phi*phi));
   
   ## obs variance for spawners
-  sd_s ~ dunif(0.001,10);
-  tau_s <- pow(sd_s,-2);
-  sigma_s <- pow(sd_s,2);
+#  sd_s ~ dunif(0.001,10);
+  tau_s <- 1/sigma_s;
+  sigma_s ~ dnorm(0, 2e-2) T(0,);
   
   ## maturity schedule
   ## unif vec for Dirch prior
@@ -612,7 +620,7 @@ model {
   ## hyper-mean for maturity
   pi_eta ~ ddirch(theta);
   ## hyper-prec for maturity
-  pi_tau ~ dunif(0.01,100);
+  pi_tau ~ dnorm(0, 0.01) T(0,);
   for(t in 1:(n_yrs-age_min+n_fore)) { pi_vec[t,1:A] ~ ddirch(pi_eta*pi_tau) }
   
   ## unprojectable early recruits;
@@ -623,8 +631,16 @@ model {
   ## precision across all popns
   Rec_tau <- pow(Rec_sig,-2);
   ## multipliers for unobservable total runs
-  ttl_run_mu ~ dunif(1,5);
-  ttl_run_tau ~ dunif(1,20);
+#  ttl_run_mu ~ dunif(1,5);
+#  ttl_run_tau ~ dunif(1,20);
+  
+  ## get total cal yr returns for first age_min yrs
+  for(i in 1:(age_min+age_skip)) {
+#    ln_tot_Run[i] ~ dnorm(ttl_run_mu*Rec_mu,Rec_tau/ttl_run_tau);
+#    tot_Run[i] <- exp(ln_tot_Run[i]);
+    tot_Run_early[i] ~ dnorm(0,1e-5) I(0, 5e4);
+    tot_Run[i] <- tot_Run_early[i];
+  }
   
   ##------------
   ## LIKELIHOOD
@@ -645,7 +661,8 @@ model {
   
   ## brood-yr recruits by age
   for(a in 1:A) {
-    Rec[1,a] <- max(1,tot_Rec[1] * pi_vec[1,a]);
+#    Rec[1,a] <- max(1,tot_Rec[1] * pi_vec[1,a]);
+    Rec[1,a] <- tot_Rec[1] * pi_vec[1,a];
   }
   
   ## brood years 2:(n_yrs-age_min)
@@ -663,15 +680,10 @@ model {
     ln_RS[t] <- tot_ln_Rec[t] - ln_Sp[t];
     ## brood-yr recruits by age
     for(a in 1:A) {
-      Rec[t,a] <- max(1,tot_Rec[t] * pi_vec[t,a]);
+#      Rec[t,a] <- max(1,tot_Rec[t] * pi_vec[t,a]);
+      Rec[t,a] <- tot_Rec[t] * pi_vec[t,a];
     }
   } ## end t loop over year
-  
-  ## get total cal yr returns for first age_min yrs
-  for(i in 1:(age_min+age_skip)) {
-    ln_tot_Run[i] ~ dnorm(ttl_run_mu*Rec_mu,Rec_tau/ttl_run_tau);
-    tot_Run[i] <- exp(ln_tot_Run[i]);
-  }
   
   ## get predicted calendar year returns by age
   ## matrix Run has dim [(n_yrs-age_min) x A]
@@ -695,7 +707,7 @@ model {
     }
     ## multinomial for age comp
     dat_age[i,1:A] ~ dmulti(age_v[i,1:A],dat_age[i,A+1]);
-    lp_age[i] <- logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]);
+    lp_age[i] <- max(0, logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]));
   }
   
   ## step 2: info from complete broods
@@ -712,7 +724,7 @@ model {
     }
     ## multinomial for age comp
     dat_age[i,1:A] ~ dmulti(age_v[i,1:A],dat_age[i,A+1]);
-    lp_age[i] <- logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]);
+    lp_age[i] <- max(0, logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]));
   }
   
   ## get predicted calendar year spawners
@@ -746,23 +758,25 @@ model {
   E_BH_a <- mu_BH_a + sigma_r/(2 - 2*phi^2);
   
   ## strength of dens depend
-  beta ~ dunif(0,0.01);
+#  beta ~ dunif(0,0.01);
+  beta_inv ~ dnorm(0, 1e-9) T(0,);
+  beta <- 1/beta_inv;
   
   ## AR(1) coef for proc errors
   phi ~ dunif(-0.999,0.999);
   
   ## process variance for recruits model
-  sd_r ~ dunif(0.001,10);
-  tau_r <- pow(sd_r,-2);
-  sigma_r <- pow(sd_r,2);
+#  sd_r ~ dnorm(0, 2e-2) T(0,);
+  sigma_r ~ dnorm(0, 2e-2) T(0,);
+  tau_r <- 1/sigma_r;
   
   ## innovation in first year
   innov_1 ~ dnorm(0,tau_r*(1-phi*phi));
   
   ## obs variance for spawners
-  sd_s ~ dunif(0.001,10);
-  tau_s <- pow(sd_s,-2);
-  sigma_s <- pow(sd_s,2);
+#  sd_s ~ dunif(0.001,10);
+  tau_s <- 1/sigma_s;
+  sigma_s ~ dnorm(0, 2e-2) T(0,);
   
   ## unprojectable early recruits;
   ## hyper mean across all popns
@@ -772,8 +786,16 @@ model {
   ## precision across all popns
   Rec_tau <- pow(Rec_sig,-2);
   ## multipliers for unobservable total runs
-  ttl_run_mu ~ dunif(1,5);
-  ttl_run_tau ~ dunif(1,20);
+#  ttl_run_mu ~ dunif(1,5);
+#  ttl_run_tau ~ dunif(1,20);
+  
+  ## get total cal yr returns for first age_min yrs
+  for(i in 1:(age_min+age_skip)) {
+#    ln_tot_Run[i] ~ dnorm(ttl_run_mu*Rec_mu,Rec_tau/ttl_run_tau);
+#    tot_Run[i] <- exp(ln_tot_Run[i]);
+    tot_Run_early[i] ~ dnorm(0,1e-5) I(0, 5e4);
+    tot_Run[i] <- tot_Run_early[i];
+  }
   
   ## maturity schedule
   ## unif vec for Dirch prior
@@ -781,7 +803,7 @@ model {
   ## hyper-mean for maturity
   pi_eta ~ ddirch(theta);
   ## hyper-prec for maturity
-  pi_tau ~ dunif(0.01,100);
+  pi_tau ~ dnorm(0, 0.01) T(0,);
   for(t in 1:(n_yrs-age_min+n_fore)) { pi_vec[t,1:A] ~ ddirch(pi_eta*pi_tau) }
   
   ##------------
@@ -801,7 +823,8 @@ model {
   
   ## brood-yr recruits by age
   for(a in 1:A) {
-    Rec[1,a] <- max(1,tot_Rec[1] * pi_vec[1,a]);
+#    Rec[1,a] <- max(1,tot_Rec[1] * pi_vec[1,a]);
+    Rec[1,a] <- tot_Rec[1] * pi_vec[1,a];
   }
   
   ## brood years 2:(n_yrs-age_min)
@@ -817,15 +840,10 @@ model {
     ln_RS[t] <- tot_ln_Rec[t] - ln_Sp[t];
     ## brood-yr recruits by age
     for(a in 1:A) {
-      Rec[t,a] <- max(1,tot_Rec[t] * pi_vec[t,a]);
+#      Rec[t,a] <- max(1,tot_Rec[t] * pi_vec[t,a]);
+      Rec[t,a] <- tot_Rec[t] * pi_vec[t,a];
     }
   } ## end t loop over year
-  
-  ## get total cal yr returns for first age_min yrs
-  for(i in 1:(age_min+age_skip)) {
-    ln_tot_Run[i] ~ dnorm(ttl_run_mu*Rec_mu,Rec_tau/ttl_run_tau);
-    tot_Run[i] <- exp(ln_tot_Run[i]);
-  }
   
   ## get predicted calendar year returns by age
   ## matrix Run has dim [(n_yrs-age_min) x A]
@@ -849,7 +867,7 @@ model {
     }
     ## multinomial for age comp
     dat_age[i,1:A] ~ dmulti(age_v[i,1:A],dat_age[i,A+1]);
-    lp_age[i] <- logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]);
+    lp_age[i] <- max(0, logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]));
   }
   
   ## step 2: info from complete broods
@@ -866,7 +884,7 @@ model {
     }
     ## multinomial for age comp
     dat_age[i,1:A] ~ dmulti(age_v[i,1:A],dat_age[i,A+1]);
-    lp_age[i] <- logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]);
+    lp_age[i] <- max(0, logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]));
   }
   
   ## get predicted calendar year spawners
@@ -913,14 +931,14 @@ model {
   innov_1 ~ dnorm(0,tau_r*(1-phi*phi));
   
   ## process variance for recruits model
-  sd_r ~ dunif(0.001,10);
-  tau_r <- pow(sd_r,-2);
-  sigma_r <- pow(sd_r,2);
+#  sd_r ~ dnorm(0, 2e-2) T(0,);
+  sigma_r ~ dnorm(0, 2e-2) T(0,);
+  tau_r <- 1/sigma_r;
   
   ## obs variance for spawners
-  sd_s ~ dunif(0.001,10);
-  tau_s <- pow(sd_s,-2);
-  sigma_s <- pow(sd_s,2);
+#  sd_s ~ dunif(0.001,10);
+  tau_s <- 1/sigma_s;
+  sigma_s ~ dnorm(0, 2e-2) T(0,);
   
   ## unprojectable early recruits;
   ## hyper mean across all popns
@@ -930,8 +948,16 @@ model {
   ## precision across all popns
   Rec_tau <- pow(Rec_sig,-2);
   ## multipliers for unobservable total runs
-  ttl_run_mu ~ dunif(1,5);
-  ttl_run_tau ~ dunif(1,20);
+#  ttl_run_mu ~ dunif(1,5);
+#  ttl_run_tau ~ dunif(1,20);
+  
+  ## get total cal yr returns for first age_min yrs
+  for(i in 1:(age_min+age_skip)) {
+#    ln_tot_Run[i] ~ dnorm(ttl_run_mu*Rec_mu,Rec_tau/ttl_run_tau);
+#    tot_Run[i] <- exp(ln_tot_Run[i]);
+    tot_Run_early[i] ~ dnorm(0,1e-5) I(0, 5e4);
+    tot_Run[i] <- tot_Run_early[i];
+  }
   
   ## maturity schedule
   ## unif vec for Dirch prior
@@ -939,7 +965,7 @@ model {
   ## hyper-mean for maturity
   pi_eta ~ ddirch(theta);
   ## hyper-prec for maturity
-  pi_tau ~ dunif(0.01,100);
+  pi_tau ~ dnorm(0, 0.01) T(0,);
   for(t in 1:(n_yrs-age_min+n_fore)) { pi_vec[t,1:A] ~ ddirch(pi_eta*pi_tau) }
   
   ##------------
@@ -960,7 +986,8 @@ model {
   
   ## brood-yr recruits by age
   for(a in 1:A) {
-    Rec[1,a] <- max(1,tot_Rec[1] * pi_vec[1,a]);
+#    Rec[1,a] <- max(1,tot_Rec[1] * pi_vec[1,a]);
+    Rec[1,a] <- tot_Rec[1] * pi_vec[1,a];
   }
   
   ## brood years 2:(n_yrs-age_min)
@@ -978,15 +1005,10 @@ model {
     ln_RS[t] <- tot_ln_Rec[t] - ln_Sp[t];
     ## brood-yr recruits by age
     for(a in 1:A) {
-      Rec[t,a] <- max(1,tot_Rec[t] * pi_vec[t,a]);
+#      Rec[t,a] <- max(1,tot_Rec[t] * pi_vec[t,a]);
+      Rec[t,a] <- tot_Rec[t] * pi_vec[t,a];
     }
   } ## end t loop over year
-  
-  ## get total cal yr returns for first age_min yrs
-  for(i in 1:(age_min+age_skip)) {
-    ln_tot_Run[i] ~ dnorm(ttl_run_mu*Rec_mu,Rec_tau/ttl_run_tau);
-    tot_Run[i] <- exp(ln_tot_Run[i]);
-  }
   
   ## get predicted calendar year returns by age
   ## matrix Run has dim [(n_yrs-age_min) x A]
@@ -1010,7 +1032,7 @@ model {
     }
     ## multinomial for age comp
     dat_age[i,1:A] ~ dmulti(age_v[i,1:A],dat_age[i,A+1]);
-    lp_age[i] <- logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]);
+    lp_age[i] <- max(0, logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]));
   }
   
   ## step 2: info from complete broods
@@ -1027,7 +1049,7 @@ model {
     }
     ## multinomial for age comp
     dat_age[i,1:A] ~ dmulti(age_v[i,1:A],dat_age[i,A+1]);
-    lp_age[i] <- logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]);
+    lp_age[i] <- max(0, logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]));
   }
   
   ## get predicted calendar year spawners
@@ -1068,8 +1090,8 @@ par_jags <- c("lp_age","lp_esc")
 ## 3. MCMC control params
 ## MCMC parameters
 mcmc_chains <- 4
-mcmc_length <- 3e4
-mcmc_burn <- 5e3
+mcmc_length <- 2e4
+mcmc_burn <- 1e4
 mcmc_thin <- 20
 ## total number of MCMC samples
 mcmc_samp <- (mcmc_length-mcmc_burn)*mcmc_chains/mcmc_thin
@@ -1091,15 +1113,16 @@ mod_fits <- vector("list", 2*(1+n_cov))
 ## function to create JAGS inits
 ## Eqn 2
 init_vals_AR <- function() {
-	list(alpha = 2.0,
-	     beta = 1/exp(mean(ln_dat_esc, na.rm = TRUE)),
-	     pi_tau = 1,
+	list(alpha = 5,
+	     beta_inv = exp(mean(ln_dat_esc, na.rm = TRUE)),
+	     pi_tau = 10,
 	     pi_eta = rep(1,A),
-	     pi_vec = matrix(c(0.02,0.3,0.48,0.15,0.04,0.01), n_yrs-age_min+n_fore, A,
+	     pi_vec = matrix(c(0.01,0.35,0.47,0.15,0.01,0.01), n_yrs-age_min+n_fore, A,
 	                     byrow = TRUE),
 	     Rec_mu = log(1000),
 	     Rec_sig = 0.1,
 	     tot_ln_Rec = rep(log(1000), n_yrs - age_min + n_fore),
+	     tot_Run_early = rep(8000, age_min+age_skip),
 	     innov_1 = 0,
 	     phi = 0.5)
 }
@@ -1116,9 +1139,9 @@ mod_jags <- list(data = dat_jags,
 mod_jags$inits <- init_vals_AR
 ## Ricker
 mod_jags$model.file <- "IPM_RK_AR.txt"
-#mod_fits[[1]] <- do.call(jags.parallel, mod_jags)
+mod_fits[[1]] <- do.call(jags.parallel, mod_jags)
 ## B-H
-mod_jags$inits <- NULL
+mod_jags$inits <- init_vals_AR
 mod_jags$model.file <- "IPM_BH_AR.txt"
 mod_fits[[2]] <- do.call(jags.parallel, mod_jags)
 ```
@@ -1139,18 +1162,17 @@ mod_jags$parameters.to.save <- par_jags
 ## function to create JAGS inits
 ## Eqn 4
 init_vals_cov_AR <- function() {
-	list(alpha = 1,
-	     beta = 1/exp(mean(ln_dat_esc, na.rm = TRUE)),
+	list(alpha = 5,
+	     beta_inv = exp(mean(ln_dat_esc, na.rm = TRUE)),
 	     gamma = 0,
-	     pi_tau = 1,
+	     pi_tau = 10,
 	     pi_eta = rep(1,A),
-	     pi_vec = matrix(c(0.02,0.3,0.48,0.15,0.04,0.01), n_yrs-age_min+n_fore, A,
+	     pi_vec = matrix(c(0.01,0.35,0.47,0.15,0.01,0.01), n_yrs-age_min+n_fore, A,
 	                     byrow = TRUE),
 	     Rec_mu = log(1000),
 	     Rec_sig = 0.1,
 	     tot_ln_Rec = rep(log(1000), n_yrs - age_min + n_fore),
-	     ttl_run_mu = 1,
-	     ttl_run_tau  = 1,
+	     tot_Run_early = rep(8000, age_min+age_skip),
 	     innov_1 = 0,
 	     phi = 0.5)
 }
