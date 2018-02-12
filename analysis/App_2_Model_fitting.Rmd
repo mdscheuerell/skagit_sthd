@@ -53,8 +53,9 @@ if(!require("here")) {
   install.packages("here")
   library("here")
 }
-## set data dir
+## set data & JAGS directories
 datadir <- here("data")
+jagsdir <- here("jags")
 ```
 
 We also need a couple of helper functions.
@@ -210,7 +211,7 @@ Our analysis investigates 5 covariates as possible drivers of the population's i
 
 All of the covariates are contained in the file `/data/skagit_sthd_covars.csv`. We will load and then standardize them to have zero-mean and unit-variance.
 
-```{r combine_covars}
+```{r get_covariates}
 ## covariate(s)
 dat_cvrs <- read_csv(file.path(datadir, "skagit_sthd_covars.csv"))
 ## drop year col
@@ -246,28 +247,30 @@ model {
   ## PRIORS
   ##--------
   ## alpha = exp(a) = intrinsic productivity
-  alpha ~ dunif(0.1,20);
+  alpha ~ dnorm(0,10) T(0,);
   mu_Rkr_a <- log(alpha);
   E_Rkr_a <- mu_Rkr_a + sigma_r/(2 - 2*phi^2);
   
   ## strength of dens depend
-  beta ~ dunif(0,0.01);
+#  beta ~ dunif(0,0.01);
+  beta_inv ~ dnorm(0, 1e-9) T(0,);
+  beta <- 1/beta_inv;
   
   ## AR(1) coef for proc errors
   phi ~ dunif(-0.999,0.999);
   
   ## process variance for recruits model
-  sd_r ~ dunif(0.001,10);
-  tau_r <- pow(sd_r,-2);
-  sigma_r <- pow(sd_r,2);
+#  sd_r ~ dnorm(0, 2e-2) T(0,);
+  sigma_r ~ dnorm(0, 2e-2) T(0,);
+  tau_r <- 1/sigma_r;
   
   ## innovation in first year
   innov_1 ~ dnorm(0,tau_r*(1-phi*phi));
   
   ## obs variance for spawners
-  sd_s ~ dunif(0.001,10);
-  tau_s <- pow(sd_s,-2);
-  sigma_s <- pow(sd_s,2);
+#  sd_s ~ dunif(0.001,10);
+  tau_s <- 1/sigma_s;
+  sigma_s ~ dnorm(0, 2e-2) T(0,);
   
   ## maturity schedule
   ## unif vec for Dirch prior
@@ -275,9 +278,9 @@ model {
   ## hyper-mean for maturity
   pi_eta ~ ddirch(theta);
   ## hyper-prec for maturity
-  pi_tau ~ dunif(0.01,100);
+  pi_tau ~ dnorm(0, 0.01) T(0,);
   for(t in 1:(n_yrs-age_min+n_fore)) { pi_vec[t,1:A] ~ ddirch(pi_eta*pi_tau) }
-  
+
   ## unprojectable early recruits;
   ## hyper mean across all popns
   Rec_mu ~ dnorm(0,0.001);
@@ -358,8 +361,7 @@ model {
     }
     ## multinomial for age comp
     dat_age[i,1:A] ~ dmulti(age_v[i,1:A],dat_age[i,A+1]);
-    lp_age_l[i] <- logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]);
-    lp_age[i] <- max(1, lp_age_l[i]);
+    lp_age[i] <- max(0, logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]));
   }
   
   ## step 2: info from complete broods
@@ -376,9 +378,7 @@ model {
     }
     ## multinomial for age comp
     dat_age[i,1:A] ~ dmulti(age_v[i,1:A],dat_age[i,A+1]);
-#    lp_age[i] <- logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]);
-    lp_age_l[i] <- logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]);
-    lp_age[i] <- max(1, lp_age_l[i]);
+    lp_age[i] <- max(0, logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]));
   }
   
   ## get predicted calendar year spawners
@@ -393,7 +393,7 @@ model {
   
 } ## end model description
 
-", file="IPM_RK_AR.txt")
+", file=file.path(jagsdir, "IPM_RK_AR.txt"))
 ```
 
 ## Ricker with covars & AR(1)
@@ -559,7 +559,7 @@ model {
   
 } ## end model description
 
-", file="IPM_RK_cov_AR.txt")
+", file=file.path(jagsdir, "IPM_RK_cov_AR.txt"))
 ```
 
 ## Beverton-Holt with AR(1)
@@ -578,23 +578,25 @@ model {
   E_BH_a <- mu_BH_a + sigma_r/(2 - 2*phi^2);
   
   ## strength of dens depend
-  beta ~ dunif(0,0.01);
+#  beta ~ dunif(0,0.01);
+  beta_inv ~ dnorm(0, 1e-9) T(0,);
+  beta <- 1/beta_inv;
   
   ## AR(1) coef for proc errors
   phi ~ dunif(-0.999,0.999);
   
   ## process variance for recruits model
-  sd_r ~ dunif(0.001,10);
-  tau_r <- pow(sd_r,-2);
-  sigma_r <- pow(sd_r,2);
+#  sd_r ~ dnorm(0, 2e-2) T(0,);
+  sigma_r ~ dnorm(0, 2e-2) T(0,);
+  tau_r <- 1/sigma_r;
   
   ## innovation in first year
   innov_1 ~ dnorm(0,tau_r*(1-phi*phi));
   
   ## obs variance for spawners
-  sd_s ~ dunif(0.001,10);
-  tau_s <- pow(sd_s,-2);
-  sigma_s <- pow(sd_s,2);
+#  sd_s ~ dunif(0.001,10);
+  tau_s <- 1/sigma_s;
+  sigma_s ~ dnorm(0, 2e-2) T(0,);
   
   ## unprojectable early recruits;
   ## hyper mean across all popns
@@ -621,7 +623,7 @@ model {
   ## hyper-mean for maturity
   pi_eta ~ ddirch(theta);
   ## hyper-prec for maturity
-  pi_tau ~ dunif(0.01,100);
+  pi_tau ~ dnorm(0, 0.01) T(0,);
   for(t in 1:(n_yrs-age_min+n_fore)) { pi_vec[t,1:A] ~ ddirch(pi_eta*pi_tau) }
   
   ##------------
@@ -685,7 +687,7 @@ model {
     }
     ## multinomial for age comp
     dat_age[i,1:A] ~ dmulti(age_v[i,1:A],dat_age[i,A+1]);
-    lp_age[i] <- max(-20, logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]));
+    lp_age[i] <- max(0, logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]));
   }
   
   ## step 2: info from complete broods
@@ -702,7 +704,7 @@ model {
     }
     ## multinomial for age comp
     dat_age[i,1:A] ~ dmulti(age_v[i,1:A],dat_age[i,A+1]);
-    lp_age[i] <- max(-20, logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]));
+    lp_age[i] <- max(0, logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]));
   }
   
   ## get predicted calendar year spawners
@@ -717,7 +719,7 @@ model {
   
 } ## end model description
 
-", file="IPM_BH_AR.txt")
+", file=file.path(jagsdir, "IPM_BH_AR.txt"))
 ```
 
 ## Beverton-Holt with covars & AR(1)
@@ -882,7 +884,7 @@ model {
   
 } ## end model description
 
-", file="IPM_BH_cov_AR.txt")
+", file=file.path(jagsdir, "IPM_BH_cov_AR.txt"))
 ```
 
 ***
@@ -898,74 +900,71 @@ The last thing we need to do before fitting the model in JAGS is to specify:
 
 ```{r jags_setup}
 ## 1. data to pass to JAGS
-dat_jags <- c("ln_dat_esc", "dat_age", "dat_harv",
-              "A", "age_min", "age_max", "age_skip",
-              "n_yrs", "n_fore") 
+dat_jags <- list(dat_age = dat_age,
+                 ln_dat_esc = ln_dat_esc,
+                 dat_harv = dat_harv,
+                 mod_cvrs = scl_cvrs[,1],
+                 A = A,
+                 age_min = age_min,
+                 age_max = age_max,
+                 age_skip = age_skip,
+                 n_yrs = n_yrs,
+                 n_fore = n_fore) 
 
 ## 2. model params/states for JAGS to return
 par_jags <- c("lp_age","lp_esc")
 
 ## 3. MCMC control params
-## MCMC parameters
-mcmc_chains <- 4
-mcmc_length <- 3e4
-mcmc_burn <- 5e3
-mcmc_thin <- 20
-## total number of MCMC samples
-mcmc_samp <- (mcmc_length-mcmc_burn)*mcmc_chains/mcmc_thin
+mcmc_ctrl <- list(
+  chains = 4,
+  length = 2.5e4,
+  burn = 5e3,
+  thin = 20
+)
+## total number of MCMC samples after burnin
+mcmc_samp <- mcmc_ctrl$length*mcmc_ctrl$chains/mcmc_ctrl$thin
 ```
 
 ## Models without covariates
 
 Please note that the following code takes ~20 min to run on a quad-core machine with 3.5 GHz Intel processors.
 
-```{r JAGS_IO_1, message = FALSE, warning = FALSE, cache = FALSE}
+```{r JAGS_IO_1, message = FALSE, warning = FALSE, cache = TRUE}
 ## empty list for fits
 mod_fits <- vector("list", 2*(1+n_cov))
 
-library(rjags)
-
-init_vals_cov_AR <- function() {
-	list(alpha = 2,
-	     beta = 1/exp(mean(ln_dat_esc, na.rm = TRUE)),
-	     gamma = 0,
-	     pi_tau = 1,
+## function for inits
+init_vals_AR <- function() {
+	list(alpha = 5,
+	     beta_inv = exp(mean(ln_dat_esc, na.rm = TRUE)),
+	     pi_tau = 10,
 	     pi_eta = rep(1,A),
-	     pi_vec = matrix(c(0.02,0.3,0.48,0.15,0.04,0.01), n_yrs-age_min+n_fore, A,
+	     pi_vec = matrix(c(0.01,0.35,0.47,0.15,0.01,0.01),
+	                     n_yrs-age_min+n_fore, A, 
 	                     byrow = TRUE),
 	     Rec_mu = log(1000),
 	     Rec_sig = 0.1,
 	     tot_ln_Rec = rep(log(1000), n_yrs - age_min + n_fore),
 	     tot_Run_early = rep(8000, age_min+age_skip),
-#	     ttl_run_mu = 1,
-#	     ttl_run_tau  = 1,
 	     innov_1 = 0,
 	     phi = 0.5)
 }
 
-dat_jags <- list(dat_age=dat_age,
-                 ln_dat_esc=ln_dat_esc,
-                 dat_harv=dat_harv,
-                 mod_cvrs=scl_cvrs[,1],
-                 A=A,
-                 age_min=age_min,
-                 age_max=age_max,
-                 age_skip=age_skip,
-                 n_yrs=n_yrs,
-                 n_fore=n_fore) 
-
-par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
-              "beta",
-              "gamma",
-              "lp_age","lp_esc",
-              "Sp","Rec","tot_ln_Rec","ln_RS",
-              "pi_vec",
-              "sigma_r","sigma_s","res_ln_Rec")
-
-jm <- jags.model("IPM_RK_cov_AR.txt", data=dat_jags, 
-                 n.chains=4, n.adapt=5000, inits = init_vals_cov_AR)
-
-ss <- coda.samples(jm, par_jags, n.iter=25000, thin=20)
+## wrapper function to fit JAGS models & rearrange output
+fit_jags <- function(model, data, params, inits, ctrl, dir = jagsdir) {
+  jm <- jags.model(file.path(jagsdir, model),
+                   data,
+                   inits,
+                   ctrl$chains,
+                   ctrl$burn)
+  cs <- coda.samples(jm, params, ctrl$length, ctrl$thin)
+  return(do.call(rbind.data.frame, cs))
+}
+  
+## fit Ricker
+mod_fits[[1]] <- fit_jags("IPM_RK_AR.txt", dat_jags, par_jags, init_vals_AR, mcmc_ctrl)
+## fit B-H
+mod_fits[[2]] <- fit_jags("IPM_BH_AR.txt", dat_jags, par_jags, init_vals_AR, mcmc_ctrl)
 ```
 
 ```{r db2}
