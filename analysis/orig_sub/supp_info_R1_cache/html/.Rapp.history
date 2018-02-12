@@ -1,0 +1,13 @@
+load("/Users/mark.scheuerell/Documents/GitHub/skagit_sthd/analysis/supp_info_R1_cache/html/JAGS_IO_2_7db230fd174d2a57e4ebbca6e70edb95.RData")
+lazyLoad("JAGS_IO_2_7db230fd174d2a57e4ebbca6e70edb95")
+ls()
+length(mod_jags)
+names(mod_jags[[1]])
+mod_jags[[1]]
+names(mod_fits[[1]])
+mod_fits[[1]]
+length(mod_fits)
+mod_fits[[2]]
+names(mod_fits[[2]])
+names(mod_fits[[12]])
+names(mod_fits[[11]])

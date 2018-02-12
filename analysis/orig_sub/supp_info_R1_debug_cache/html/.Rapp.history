@@ -1,0 +1,4 @@
+load("/Users/mark.scheuerell/Documents/GitHub/skagit_sthd/analysis/supp_info_R1_debug_cache/html/JAGS_IO_1_7dd8dd1786b31f1e7d2fc3f3cd27cb57.RData")
+getwd()
+ls()
+dir()
