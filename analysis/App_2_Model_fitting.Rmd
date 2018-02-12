@@ -34,7 +34,7 @@ We also need a few packages that are not included with the base installation of 
 
 ```{r load_pkgs, message = FALSE, warning = FALSE}
 if(!require("rjags")) {
-  install.packages("R2jags")
+  install.packages("rjags")
   library("rjags")
 }
 if(!require("readr")) {
@@ -108,19 +108,33 @@ waic <- function(log_lik) {
 ```
 
 # User inputs
-We begin by specifying the names of three necessary data files that contain the following information:
+We begin by supplying values for the following parameters, which we need for model fitting and evaluation.
+
+```{r get_user_inputs}
+## first & last years of fish data
+yr_frst <- 1978
+yr_last <- 2017
+
+## min & max adult age classes
+age_min <- 3
+age_max <- 8
+## years (if any) of age-comp to skip; see below
+age_skip <- 0
+
+## number of years for run forecasts
+n_fore <- 0
+
+## upper threshold for Gelman & Rubin's potential scale reduction factor (Rhat).
+Rhat_thresh <- 1.1
+```
+
+Next we specify the names of three necessary data files containing the following information:
  
  1. observed total number of adult spawners (escapement) by year;
  2. observed age composition of adult spawners by year;
  3. observed total harvest by year;
 
-Let's also define the following parameters, which will be referenced throughout the analysis.
-
- * `n_yrs`: number of calendar years of data
- * `A`: number of age classes 
- * `M`: number of covariates
-
-```{r get_user_inputs}
+```{r get_filenames}
 ## 1. file with escapement data
 ## [n_yrs x 2] matrix of obs counts; 1st col is calendar yr
 fn_esc <- "skagit_sthd_esc.csv"
@@ -128,31 +142,10 @@ fn_esc <- "skagit_sthd_esc.csv"
 ## 2. file with age comp data
 ## [n_yrs x (1+A)]; 1st col is calendar yr
 fn_age <- "skagit_sthd_age.csv"
-## min & max ages
-age_min <- 3
-age_max <- 8
-## years, if any, of age-comp to skip; see below
-age_skip <- 2
 
 ## 3. file with harvest data
 ## [n_yrs x 2] matrix of obs catch; 1st col is calendar yr
 fn_harv <- "skagit_sthd_catch.csv"
-
-## 4. file with hatchery release data
-## [n_yrs x (1+MM)]; 1st col is calendar yr
-fn_hrel <- "skagit_sthd_hrel.csv"
-
-## time lags (years) for covariates
-flow_lag <- 1
-marine_lag <- 2
-hrel_lag <- 2
-
-## number of years of forecasts
-n_fore <- 0
-
-## upper threshold for Gelman & Rubin's (1992) potential scale reduction factor (Rhat).
-Rhat_thresh <- 1.1
-
 ```
 
 # Loading the fish data
@@ -160,15 +153,11 @@ Here we load in the first three data files and do some simple calculations and m
 
 ```{r get_escapement_data}
 ## escapement
-dat_esc <- read_csv(paste0(ex_url,fn_esc)) dat_hrel <- read_csv(file.path(datadir, "/skagit_sthd_hrel.csv"))
-
+dat_esc <- read_csv(file.path(datadir, fn_esc))
 ## years of data
 dat_yrs <- dat_esc$year
 ## number of years of data
 n_yrs <- length(dat_yrs)
-## get first & last years
-yr_frst <- min(dat_yrs)
-yr_last <- max(dat_yrs)
 ## log of escapement
 ln_dat_esc <- c(log(dat_esc$escapement),rep(NA,n_fore))
 ```
@@ -177,11 +166,11 @@ Next the age composition data:
 
 ```{r get_age_data}
 ## age comp data
-dat_age <- read_csv(paste0(ex_url,fn_age))
-## drop year col & first age_min+age_skip rows
+dat_age <- read_csv(file.path(datadir, fn_age))
+## drop year col & first (age_min + age_skip) rows
 dat_age <- dat_age[-(1:(age_min+age_skip)),-1]
 ## num of age classes
-A <- age_max-age_min+1
+A <- age_max - age_min + 1
 ## add row(s) of NA's for forecast years
 if(n_fore > 0) {
   dat_age <- rbind(dat_age,
@@ -204,7 +193,7 @@ And then the harvest data:
 
 ```{r get_harvest}
 ## harvest
-dat_harv <- read_csv(paste0(ex_url, fn_harv))
+dat_harv <- read_csv(file.path(datadir, fn_harv))
 ## drop year col & first age_max rows
 dat_harv <- c(dat_harv$catch, rep(0,n_fore))
 ```
@@ -219,14 +208,13 @@ Our analysis investigates 5 covariates as possible drivers of the population's i
 4. Spring Transition Index;
 5. Releases of hatchery-born juveniles.
 
-We will standardize the covariates to have zero-mean and unit-variance.
+All of the covariates are contained in the file `/data/skagit_sthd_covars.csv`. We will load and then standardize them to have zero-mean and unit-variance.
 
 ```{r combine_covars}
 ## covariate(s)
-dat_cvrs <- read_csv()
+dat_cvrs <- read_csv(file.path(datadir, "skagit_sthd_covars.csv"))
 ## drop year col
 dat_cvrs <- dat_cvrs[,-1] 
-dat_cvrs <- matrix(rnorm(37*5), 37, 5) 
 ## transform the covariates to z-scores
 scl_cvrs <- as.matrix(scale(dat_cvrs)) 
 ## total number of covariates
