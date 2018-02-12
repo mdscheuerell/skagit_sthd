@@ -238,7 +238,7 @@ The numbers of hatchery fish released each year are provided in `/data/skagit_st
 
 ```{r get_hatchery_releases}
 ## get releases
-dat_hrel <- read_csv(file.path(datadir, "/skagit_sthd_hrel.csv"))
+dat_hrel <- read_csv(file.path(datadir, "skagit_sthd_hrel.csv"))
 dat_hrel <- subset(dat_hrel, dat_hrel$year <= max(dat_STI$year))
 ```
 
@@ -257,6 +257,6 @@ dat_cvrs <- Reduce(function(...) merge(..., all = TRUE),
 ## peak at covariates
 head(dat_cvrs)
 ## write covariates to a file
-write_csv(dat_cvrs, file.path(datadir, "/skagit_sthd_covars.csv"))
+write_csv(dat_cvrs, file.path(datadir, "skagit_sthd_covars.csv"))
 ```
 
