@@ -1013,7 +1013,6 @@ par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
                "Sp","Rec","tot_ln_Rec","ln_RS",
               "pi_vec",
               "sigma_r","sigma_s","res_ln_Rec")
-
 ```
 
 ```{r stop_timer, include = FALSE}
@@ -1022,31 +1021,61 @@ run_time_in_min <- round(((proc.time()-timer_start)/60)["elapsed"], 1)
 cat(run_time_in_min, file = "run_time_in_min.txt")
 ```
 
+```{r get_LOOIC, warning=FALSE}
+n_mods <- length(mod_fits)
+n_mods <- 2
+LOO <- vector("numeric",n_mods)
+LOO <- data.frame(both=rep(NA, n_mods), age=rep(NA, n_mods), esc=rep(NA, n_mods))
+cc_smry_1 <- matrix(NA,n_mods,3)
+colnames(cc_smry_1) <- c("lo","med","up")
+## extract log densities from JAGS objects
+for(i in 1:n_mods) {
+  ## convert mcmc.list to matrix
+  tmp_lp <- as.matrix(mod_fits[[i]])
+  ## extract pointwise likelihoods
+  tmp_lp <- tmp_lp[,grepl("lp_", colnames(tmp_lp))]
+  ## if numerical underflows, convert -Inf to 5% less than min(likelihood)
+  if(any(is.infinite(tmp_lp))) {
+    tmp_lp[is.infinite(tmp_lp)] <- NA
+    tmp_min <- min(tmp_lp, na.rm = TRUE)
+    tmp_lp[is.na(tmp_lp)] <- tmp_min * 1.05
+  }
+  ## calculate LOOIC
+  LOO[i,"both"] <- -2*waic(tmp_lp)$elpd_loo
+  LOO[i,"age"] <- -2*waic(tmp_lp[,grep("age",colnames(tmp_lp))])$elpd_loo
+  LOO[i,"esc"] <- -2*waic(tmp_lp[,grep("esc",colnames(tmp_lp))])$elpd_loo
+  if(i < 3) {
+    cc_smry_1[i,] <- rep(NA,3)
+  } else {
+    smy <- summary(mod_fits[[i]])
+    # cc_smry_1[i,] <- mod_fits[[i]]$BUGSoutput$summary["gamma", c("2.5%","50%","97.5%")]
+  }
+}
 
-```{r db2, eval=TRUE}
-## simplify list to matrix
-# return(do.call(rbind.data.frame, cs))
+## delta-LOOIC
+d_LOO <- round(t(t(LOO) - apply(t(LOO), 1, min)), 1)
 
-m1 <- as.matrix(mod_fits[[1]])
-head(sort(m1[,"lp_age[1]"]), 20)
-head(sort(m1[,"lp_age[2]"]), 20)
-
-lp1 <- m1[,grepl("lp_", colnames(m1))]
-# apply(is.infinite(lp1), 2, sum)
-
-rm1 <- t(apply(m1, 2, quantile))
-rm1[grepl("lp_", rownames(rm1)),]
+cbind(#errors = c(2,2,rep(c(4,4),n_cov)),
+                      model = rep(c("Ricker","B-H"),n_mods/2),
+                      #covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2)),
+                      round(LOO,1),
+                      d_LOO
+                      )
 
 
-# cn <- colnames(mod_fits[[1]])
-# df <- data.frame(par=cn,
-#                  q0=rep(NA, length(cn)),
-#                  q25=rep(NA, length(cn)),
-#                  q50=rep(NA, length(cn)),
-#                  q75=rep(NA, length(cn)),
-#                  q100=rep(NA, length(cn)))
-# for(i in 1:length(cn)) {
-#   df[i, -1] <- apply(sapply(mod_fits[[1]][,i], quantile), 1, mean)
-# }
-# df
+## wt_LOO <- exp(-0.5*LOO)/sum(exp(-0.5*LOO))
+## Table of model selection results
+# tbl_LOO <- data.frame(#errors = c(2,2,rep(c(4,4),n_cov)),
+#                       model = rep(c("Ricker","B-H"),n_mods/2),
+#                       #covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2)),
+#                       LOO = round(LOO,1),
+#                       d_LOO = d_LOO
+#                       #wt_LOO = round(wt_LOO,3), round(cc_smry_1,2)
+#                       )
+# tbl_LOO
+# write.csv(tbl_LOO,  row.names = FALSE,
+#           file = "Skagit_steelhead_model_selection.csv")
+# best_idx <- which(tbl_LOO$d_LOO==0)
+# tbl_LOO[,!(names(tbl_LOO) %in% c("lag","WAIC"))]
+# tbl_LOO[order(tbl_LOO$LOO),]
 ```
