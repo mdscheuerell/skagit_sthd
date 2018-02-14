@@ -196,7 +196,7 @@ idx_NA_yrs <- which(dat_age$sum<A, TRUE)
 ## replace 0's in yrs w/o any obs with NA's
 dat_age[idx_NA_yrs,(1:A)] <- NA
 ## change total in yrs w/o any obs from 0 to A to help dmulti()
-#dat_age[idx_NA_yrs,"sum"] <- A
+dat_age[idx_NA_yrs,"sum"] <- A
 ## convert class
 dat_age <- as.matrix(dat_age)
 ```
@@ -899,9 +899,9 @@ dat_jags <- list(dat_age = dat_age,
 ## 3. MCMC control params
 mcmc_ctrl <- list(
   chains = 4,
-  length = 5e4,
-  burn = 1e4,
-  thin = 50
+  length = 1e5,
+  burn = 2e4,
+  thin = 100
 )
 ## total number of MCMC samples after burnin
 mcmc_samp <- mcmc_ctrl$length*mcmc_ctrl$chains/mcmc_ctrl$thin
@@ -952,6 +952,20 @@ par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
 mod_fits[[1]] <- fit_jags("IPM_RK_AR.txt", dat_jags, par_jags, init_vals_AR, mcmc_ctrl)
 ```
 
+#### Convergence checks
+
+```{r diag_Ricker}
+par_conv <- c("alpha","beta","sigma_r","sigma_s","pi_tau",paste0("pi_eta[",seq(A),"]"))
+
+## Gelman-Rubin
+gelman.diag(mod_fits[[1]][,par_conv])
+
+## autocorrelation
+t(round(autocorr.diag(mod_fits[[1]][,par_conv],
+                      lags = seq(mcmc_ctrl$thin, 4*mcmc_ctrl$thin, mcmc_ctrl$thin),
+                      relative=FALSE), 2))
+```
+
 ### Beverton-Holt
 
 ```{r fit_BH_base, message = FALSE, warning = FALSE, cache = TRUE}
@@ -966,17 +980,16 @@ par_jags <- c("alpha","E_BH_a","mu_BH_a",
 mod_fits[[2]] <- fit_jags("IPM_BH_AR.txt", dat_jags, par_jags, init_vals_AR, mcmc_ctrl)
 ```
 
-```{r}
-## check for convergence
-par_conv <- c("alpha","beta","sigma_r","sigma_s","pi_tau",paste0("pi_eta[",seq(A),"]"))
+#### Convergence checks
 
-## Ricker
-gelman.diag(mod_fits[[1]][,par_conv])
-t(autocorr.diag(mod_fits[[1]][,par_conv], lags = c(50, 100, 150, 200), relative=FALSE))
+```{r diag_BH}
+## Gelman-Rubin
+#gelman.diag(mod_fits[[2]][,par_conv])
 
-## B-H
-gelman.diag(mod_fits[[2]][,par_conv])
-t(autocorr.diag(mod_fits[[2]][,par_conv], lags = c(1, 5, 10, 50)))
+## autocorrelation
+t(round(autocorr.diag(mod_fits[[2]][,par_conv],
+                      lags = seq(mcmc_ctrl$thin, 4*mcmc_ctrl$thin, mcmc_ctrl$thin),
+                      relative=FALSE), 2))
 ```
 
 ## Models with covariates
@@ -1010,19 +1023,22 @@ cat(run_time_in_min, file = "run_time_in_min.txt")
 ```
 
 
-```{r db2, eval=FALSE}
+```{r db2, eval=TRUE}
 ## simplify list to matrix
-## return(do.call(rbind.data.frame, cs))
+# return(do.call(rbind.data.frame, cs))
 
-cn <- colnames(ss[[1]])
-df <- data.frame(par=cn,
-                 q0=rep(NA, length(cn)),
-                 q25=rep(NA, length(cn)),
-                 q50=rep(NA, length(cn)),
-                 q75=rep(NA, length(cn)),
-                 q100=rep(NA, length(cn)))
-for(i in 1:length(cn)) {
-  df[i, -1] <- apply(sapply(ss[,i], quantile), 1, mean)
-}
-df
+m1 <- as.matrix(mod_fits[[1]])
+t(apply(m1, 2, quantile))
+
+# cn <- colnames(mod_fits[[1]])
+# df <- data.frame(par=cn,
+#                  q0=rep(NA, length(cn)),
+#                  q25=rep(NA, length(cn)),
+#                  q50=rep(NA, length(cn)),
+#                  q75=rep(NA, length(cn)),
+#                  q100=rep(NA, length(cn)))
+# for(i in 1:length(cn)) {
+#   df[i, -1] <- apply(sapply(mod_fits[[1]][,i], quantile), 1, mean)
+# }
+# df
 ```
