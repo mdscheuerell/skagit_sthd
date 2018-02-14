@@ -900,7 +900,7 @@ dat_jags <- list(dat_age = dat_age,
 mcmc_ctrl <- list(
   chains = 4,
   length = 1e5,
-  burn = 2e4,
+  burn = 5e4,
   thin = 100
 )
 ## total number of MCMC samples after burnin
@@ -940,7 +940,7 @@ init_vals_AR <- function() {
 
 ### Ricker
 
-```{r fit_Ricker_base, message = FALSE, warning = FALSE, cache = TRUE}
+```{r fit_Ricker_base, message = FALSE, warning = FALSE, cache = FALSE}
 ## params/states to return
 par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
               "beta",
@@ -950,20 +950,6 @@ par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
               "lp_age","lp_esc")
 ## fit model
 mod_fits[[1]] <- fit_jags("IPM_RK_AR.txt", dat_jags, par_jags, init_vals_AR, mcmc_ctrl)
-```
-
-#### Convergence checks
-
-```{r diag_Ricker}
-par_conv <- c("alpha","beta","sigma_r","sigma_s","pi_tau",paste0("pi_eta[",seq(A),"]"))
-
-## Gelman-Rubin
-gelman.diag(mod_fits[[1]][,par_conv])
-
-## autocorrelation
-t(round(autocorr.diag(mod_fits[[1]][,par_conv],
-                      lags = seq(mcmc_ctrl$thin, 4*mcmc_ctrl$thin, mcmc_ctrl$thin),
-                      relative=FALSE), 2))
 ```
 
 ### Beverton-Holt
@@ -978,6 +964,20 @@ par_jags <- c("alpha","E_BH_a","mu_BH_a",
               "lp_age","lp_esc")
 ## fit model
 mod_fits[[2]] <- fit_jags("IPM_BH_AR.txt", dat_jags, par_jags, init_vals_AR, mcmc_ctrl)
+```
+
+#### Convergence checks
+
+```{r diag_Ricker}
+par_conv <- c("alpha","beta","sigma_r","sigma_s","pi_tau",paste0("pi_eta[",seq(A),"]"))
+
+## Gelman-Rubin
+gelman.diag(mod_fits[[1]][,par_conv])
+
+## autocorrelation
+t(round(autocorr.diag(mod_fits[[1]][,par_conv],
+                      lags = seq(mcmc_ctrl$thin, 4*mcmc_ctrl$thin, mcmc_ctrl$thin),
+                      relative=FALSE), 2))
 ```
 
 #### Convergence checks
@@ -1055,6 +1055,9 @@ for(i in 1:n_mods) {
 ## delta-LOOIC
 d_LOO <- round(t(t(LOO) - apply(t(LOO), 1, min)), 1)
 
+## wt_LOO <- exp(-0.5*LOO)/sum(exp(-0.5*LOO))
+## Table of model selection results
+
 cbind(#errors = c(2,2,rep(c(4,4),n_cov)),
                       model = rep(c("Ricker","B-H"),n_mods/2),
                       #covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2)),
@@ -1062,16 +1065,6 @@ cbind(#errors = c(2,2,rep(c(4,4),n_cov)),
                       d_LOO
                       )
 
-
-## wt_LOO <- exp(-0.5*LOO)/sum(exp(-0.5*LOO))
-## Table of model selection results
-# tbl_LOO <- data.frame(#errors = c(2,2,rep(c(4,4),n_cov)),
-#                       model = rep(c("Ricker","B-H"),n_mods/2),
-#                       #covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2)),
-#                       LOO = round(LOO,1),
-#                       d_LOO = d_LOO
-#                       #wt_LOO = round(wt_LOO,3), round(cc_smry_1,2)
-#                       )
 # tbl_LOO
 # write.csv(tbl_LOO,  row.names = FALSE,
 #           file = "Skagit_steelhead_model_selection.csv")
