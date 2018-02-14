@@ -984,7 +984,7 @@ mod_fits[[2]] <- fit_jags("IPM_BH_AR.txt", dat_jags, par_jags, init_vals_AR, mcm
 
 ```{r diag_BH}
 ## Gelman-Rubin
-#gelman.diag(mod_fits[[2]][,par_conv])
+gelman.diag(mod_fits[[2]][,par_conv])
 
 ## autocorrelation
 t(round(autocorr.diag(mod_fits[[2]][,par_conv],
@@ -1028,7 +1028,15 @@ cat(run_time_in_min, file = "run_time_in_min.txt")
 # return(do.call(rbind.data.frame, cs))
 
 m1 <- as.matrix(mod_fits[[1]])
-t(apply(m1, 2, quantile))
+head(sort(m1[,"lp_age[1]"]), 20)
+head(sort(m1[,"lp_age[2]"]), 20)
+
+lp1 <- m1[,grepl("lp_", colnames(m1))]
+# apply(is.infinite(lp1), 2, sum)
+
+rm1 <- t(apply(m1, 2, quantile))
+rm1[grepl("lp_", rownames(rm1)),]
+
 
 # cn <- colnames(mod_fits[[1]])
 # df <- data.frame(par=cn,

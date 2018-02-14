@@ -221,7 +221,7 @@ div.tocify {
 
 
 <hr />
-<p>This is version 0.18.02.12.</p>
+<p>This is version 0.18.02.13.</p>
 <hr />
 <div id="requirements" class="section level1">
 <h1>Requirements</h1>
@@ -259,6 +259,17 @@ Re2prec &lt;- function(x, map = &quot;round&quot;, prec = 1) {
   do.call(map,list(x/prec))*prec
 }
 
+## wrapper function to fit JAGS models &amp; rearrange output
+fit_jags &lt;- function(model, data, params, inits, ctrl, dir = jagsdir) {
+  jm &lt;- jags.model(file.path(jagsdir, model),
+                   data,
+                   inits,
+                   ctrl$chains,
+                   ctrl$burn,
+                   quiet = TRUE)
+  return(coda.samples(jm, params, ctrl$length, ctrl$thin))
+}
+  
 ## colVars; from Gelman
 ## returns the column-wise variance of a matrix
 colVars &lt;- function(a) {
@@ -364,7 +375,7 @@ idx_NA_yrs &lt;- which(dat_age$sum&lt;A, TRUE)
 ## replace 0's in yrs w/o any obs with NA's
 dat_age[idx_NA_yrs,(1:A)] &lt;- NA
 ## change total in yrs w/o any obs from 0 to A to help dmulti()
-#dat_age[idx_NA_yrs,&quot;sum&quot;] &lt;- A
+dat_age[idx_NA_yrs,&quot;sum&quot;] &lt;- A
 ## convert class
 dat_age &lt;- as.matrix(dat_age)</code></pre>
 <p>And then the harvest data:</p>
@@ -417,7 +428,7 @@ model {
   ## PRIORS
   ##--------
   ## alpha = exp(a) = intrinsic productivity
-  alpha ~ dnorm(0,10) T(0,);
+  alpha ~ dnorm(0,0.01) T(0,);
   mu_Rkr_a &lt;- log(alpha);
   E_Rkr_a &lt;- mu_Rkr_a + sigma_r/(2 - 2*phi^2);
   
@@ -437,7 +448,7 @@ model {
   
   ## obs variance for spawners
   tau_s &lt;- 1/sigma_s;
-  sigma_s ~ dnorm(0, 2e-2) T(0,);
+  sigma_s ~ dnorm(0, 0.001) T(0,);
   
   ## maturity schedule
   ## unif vec for Dirch prior
@@ -565,13 +576,17 @@ model {
   ##--------
   ## PRIORS
   ##--------
+  ##--------
+  ## PRIORS
+  ##--------
   ## alpha = exp(a) = intrinsic productivity
-  alpha ~ dunif(0.1,15);
+  alpha ~ dnorm(0,0.01) T(0,);
   mu_Rkr_a &lt;- log(alpha);
   E_Rkr_a &lt;- mu_Rkr_a + sigma_r/(2 - 2*phi^2);
   
   ## strength of dens depend
-  beta ~ dunif(0,0.01);
+  beta_inv ~ dnorm(0, 1e-9) T(0,);
+  beta &lt;- 1/beta_inv;
   
   ## covariate effects
   # for(i in 1:n_cov) { gamma[i] ~ dnorm(0,0.01) }
@@ -581,17 +596,15 @@ model {
   phi ~ dunif(-0.999,0.999);
   
   ## process variance for recruits model
-  sd_r ~ dunif(0.001,10);
-  tau_r &lt;- pow(sd_r,-2);
-  sigma_r &lt;- pow(sd_r,2);
+  sigma_r ~ dnorm(0, 2e-2) T(0,);
+  tau_r &lt;- 1/sigma_r;
   
   ## innovation in first year
   innov_1 ~ dnorm(0,tau_r*(1-phi*phi));
   
   ## obs variance for spawners
-  sd_s ~ dunif(0.001,10);
-  tau_s &lt;- pow(sd_s,-2);
-  sigma_s &lt;- pow(sd_s,2);
+  tau_s &lt;- 1/sigma_s;
+  sigma_s ~ dnorm(0, 0.001) T(0,);
   
   ## maturity schedule
   ## unif vec for Dirch prior
@@ -599,9 +612,9 @@ model {
   ## hyper-mean for maturity
   pi_eta ~ ddirch(theta);
   ## hyper-prec for maturity
-  pi_tau ~ dunif(0.01,100);
+  pi_tau ~ dnorm(0, 0.01) T(0,);
   for(t in 1:(n_yrs-age_min+n_fore)) { pi_vec[t,1:A] ~ ddirch(pi_eta*pi_tau) }
-  
+
   ## unprojectable early recruits;
   ## hyper mean across all popns
   Rec_mu ~ dnorm(0,0.001);
@@ -610,13 +623,9 @@ model {
   ## precision across all popns
   Rec_tau &lt;- pow(Rec_sig,-2);
   ## multipliers for unobservable total runs
-#  ttl_run_mu ~ dunif(1,5);
-#  ttl_run_tau ~ dunif(1,20);
-  
+
   ## get total cal yr returns for first age_min yrs
   for(i in 1:(age_min+age_skip)) {
-#    ln_tot_Run[i] ~ dnorm(ttl_run_mu*Rec_mu,Rec_tau/ttl_run_tau);
-#    tot_Run[i] &lt;- exp(ln_tot_Run[i]);
     tot_Run_early[i] ~ dnorm(0,1e-5) I(0, 5e4);
     tot_Run[i] &lt;- tot_Run_early[i];
   }
@@ -640,7 +649,6 @@ model {
   
   ## brood-yr recruits by age
   for(a in 1:A) {
-#    Rec[1,a] &lt;- max(1,tot_Rec[1] * pi_vec[1,a]);
     Rec[1,a] &lt;- tot_Rec[1] * pi_vec[1,a];
   }
   
@@ -659,7 +667,6 @@ model {
     ln_RS[t] &lt;- tot_ln_Rec[t] - ln_Sp[t];
     ## brood-yr recruits by age
     for(a in 1:A) {
-#      Rec[t,a] &lt;- max(1,tot_Rec[t] * pi_vec[t,a]);
       Rec[t,a] &lt;- tot_Rec[t] * pi_vec[t,a];
     }
   } ## end t loop over year
@@ -730,7 +737,7 @@ model {
   ## PRIORS
   ##--------
   ## alpha = exp(a) = intrinsic productivity
-  alpha ~ dunif(0.1,100);
+  alpha ~ dnorm(0,0.001) T(0,);
   mu_BH_a &lt;- log(alpha);
   E_BH_a &lt;- mu_BH_a + sigma_r/(2 - 2*phi^2);
   
@@ -750,7 +757,7 @@ model {
   
   ## obs variance for spawners
   tau_s &lt;- 1/sigma_s;
-  sigma_s ~ dnorm(0, 2e-2) T(0,);
+  sigma_s ~ dnorm(0, 0.001) T(0,);
   
   ## unprojectable early recruits;
   ## hyper mean across all popns
@@ -877,13 +884,14 @@ model {
   ##--------
   ## PRIORS
   ##--------
-  ## alpha = exp(a) = intrinsic productivity
-  alpha ~ dunif(0.1,100);
+  ## alpha = intrinsic productivity
+  alpha ~ dnorm(0,0.001) T(0,);
   mu_BH_a &lt;- log(alpha);
-  E_BH_a &lt;- mu_BH_a + sigma_r/2;
+  E_BH_a &lt;- mu_BH_a + sigma_r/(2 - 2*phi^2);
   
   ## strength of dens depend
-  beta ~ dunif(0,0.01);
+  beta_inv ~ dnorm(0, 1e-9) T(0,);
+  beta &lt;- 1/beta_inv;
   
   ## covariate effects
   # for(i in 1:n_cov) { gamma[i] ~ dnorm(0,0.01) }
@@ -896,14 +904,15 @@ model {
   innov_1 ~ dnorm(0,tau_r*(1-phi*phi));
   
   ## process variance for recruits model
-  sd_r ~ dunif(0.001,10);
-  tau_r &lt;- pow(sd_r,-2);
-  sigma_r &lt;- pow(sd_r,2);
+  sigma_r ~ dnorm(0, 2e-2) T(0,);
+  tau_r &lt;- 1/sigma_r;
+  
+  ## innovation in first year
+  innov_1 ~ dnorm(0,tau_r*(1-phi*phi));
   
   ## obs variance for spawners
-  sd_s ~ dunif(0.001,10);
-  tau_s &lt;- pow(sd_s,-2);
-  sigma_s &lt;- pow(sd_s,2);
+  tau_s &lt;- 1/sigma_s;
+  sigma_s ~ dnorm(0, 0.001) T(0,);
   
   ## unprojectable early recruits;
   ## hyper mean across all popns
@@ -912,14 +921,9 @@ model {
   Rec_sig ~ dunif(0,100);
   ## precision across all popns
   Rec_tau &lt;- pow(Rec_sig,-2);
-  ## multipliers for unobservable total runs
-#  ttl_run_mu ~ dunif(1,5);
-#  ttl_run_tau ~ dunif(1,20);
-  
+
   ## get total cal yr returns for first age_min yrs
   for(i in 1:(age_min+age_skip)) {
-#    ln_tot_Run[i] ~ dnorm(ttl_run_mu*Rec_mu,Rec_tau/ttl_run_tau);
-#    tot_Run[i] &lt;- exp(ln_tot_Run[i]);
     tot_Run_early[i] ~ dnorm(0,1e-5) I(0, 5e4);
     tot_Run[i] &lt;- tot_Run_early[i];
   }
@@ -930,7 +934,7 @@ model {
   ## hyper-mean for maturity
   pi_eta ~ ddirch(theta);
   ## hyper-prec for maturity
-  pi_tau ~ dunif(0.01,100);
+  pi_tau ~ dnorm(0, 0.01) T(0,);
   for(t in 1:(n_yrs-age_min+n_fore)) { pi_vec[t,1:A] ~ ddirch(pi_eta*pi_tau) }
   
   ##------------
@@ -951,7 +955,6 @@ model {
   
   ## brood-yr recruits by age
   for(a in 1:A) {
-#    Rec[1,a] &lt;- max(1,tot_Rec[1] * pi_vec[1,a]);
     Rec[1,a] &lt;- tot_Rec[1] * pi_vec[1,a];
   }
   
@@ -970,7 +973,6 @@ model {
     ln_RS[t] &lt;- tot_ln_Rec[t] - ln_Sp[t];
     ## brood-yr recruits by age
     for(a in 1:A) {
-#      Rec[t,a] &lt;- max(1,tot_Rec[t] * pi_vec[t,a]);
       Rec[t,a] &lt;- tot_Rec[t] * pi_vec[t,a];
     }
   } ## end t loop over year
@@ -1035,17 +1037,16 @@ model {
 </div>
 <div id="fitting-the-models" class="section level1">
 <h1>Fitting the models</h1>
-<p>The last thing we need to do before fitting the model in JAGS is to specify:</p>
+<p>Before fitting the model in JAGS, we need to specify:</p>
 <ol style="list-style-type: decimal">
 <li>the data and indices that go into the model;</li>
 <li>the model parameters and states that we want JAGS to return;</li>
 <li>the MCMC control parameters.</li>
 </ol>
-<pre class="r"><code>## 1. data to pass to JAGS
+<pre class="r"><code>## 1. Data to pass to JAGS
 dat_jags &lt;- list(dat_age = dat_age,
                  ln_dat_esc = ln_dat_esc,
                  dat_harv = dat_harv,
-                 mod_cvrs = scl_cvrs[,1],
                  A = A,
                  age_min = age_min,
                  age_max = age_max,
@@ -1053,15 +1054,16 @@ dat_jags &lt;- list(dat_age = dat_age,
                  n_yrs = n_yrs,
                  n_fore = n_fore) 
 
-## 2. model params/states for JAGS to return
-par_jags &lt;- c(&quot;lp_age&quot;,&quot;lp_esc&quot;)
+## 2. Model params/states for JAGS to return
+##    These are specific to the process model,
+##    so we define them in 'par_jags' below.
 
 ## 3. MCMC control params
 mcmc_ctrl &lt;- list(
   chains = 4,
-  length = 2.5e4,
-  burn = 5e3,
-  thin = 20
+  length = 1e5,
+  burn = 2e4,
+  thin = 100
 )
 ## total number of MCMC samples after burnin
 mcmc_samp &lt;- mcmc_ctrl$length*mcmc_ctrl$chains/mcmc_ctrl$thin</code></pre>
@@ -1086,63 +1088,238 @@ init_vals_AR &lt;- function() {
          tot_Run_early = rep(8000, age_min+age_skip),
          innov_1 = 0,
          phi = 0.5)
-}
-
-## wrapper function to fit JAGS models &amp; rearrange output
-fit_jags &lt;- function(model, data, params, inits, ctrl, dir = jagsdir) {
-  jm &lt;- jags.model(file.path(jagsdir, model),
-                   data,
-                   inits,
-                   ctrl$chains,
-                   ctrl$burn)
-  return(coda.samples(jm, params, ctrl$length, ctrl$thin))
-}
-  
-## fit Ricker
+}</code></pre>
+<div id="ricker" class="section level3">
+<h3>Ricker</h3>
+<pre class="r"><code>## params/states to return
+par_jags &lt;- c(&quot;alpha&quot;,&quot;E_Rkr_a&quot;,&quot;mu_Rkr_a&quot;,
+              &quot;beta&quot;,
+               &quot;Sp&quot;,&quot;Rec&quot;,&quot;tot_ln_Rec&quot;,&quot;ln_RS&quot;,
+              &quot;pi_eta&quot;,&quot;pi_tau&quot;,
+              &quot;sigma_r&quot;,&quot;sigma_s&quot;,&quot;res_ln_Rec&quot;,
+              &quot;lp_age&quot;,&quot;lp_esc&quot;)
+## fit model
 mod_fits[[1]] &lt;- fit_jags(&quot;IPM_RK_AR.txt&quot;, dat_jags, par_jags, init_vals_AR, mcmc_ctrl)</code></pre>
-<pre><code>## Compiling model graph
-##    Resolving undeclared variables
-##    Allocating nodes
-## Graph information:
-##    Observed stochastic nodes: 70
-##    Unobserved stochastic nodes: 109
-##    Total graph size: 1576
+<div id="convergence-checks" class="section level4">
+<h4>Convergence checks</h4>
+<pre class="r"><code>par_conv &lt;- c(&quot;alpha&quot;,&quot;beta&quot;,&quot;sigma_r&quot;,&quot;sigma_s&quot;,&quot;pi_tau&quot;,paste0(&quot;pi_eta[&quot;,seq(A),&quot;]&quot;))
+
+## Gelman-Rubin
+gelman.diag(mod_fits[[1]][,par_conv])</code></pre>
+<pre><code>## Potential scale reduction factors:
 ## 
-## Initializing model</code></pre>
-<pre class="r"><code>## fit B-H
+##           Point est. Upper C.I.
+## alpha           1.00       1.01
+## beta            1.00       1.00
+## sigma_r         1.00       1.01
+## sigma_s         1.00       1.00
+## pi_tau          1.01       1.04
+## pi_eta[1]       1.00       1.01
+## pi_eta[2]       1.00       1.00
+## pi_eta[3]       1.00       1.00
+## pi_eta[4]       1.00       1.01
+## pi_eta[5]       1.01       1.02
+## pi_eta[6]       1.30       1.77
+## 
+## Multivariate psrf
+## 
+## 1.32</code></pre>
+<pre class="r"><code>## autocorrelation
+t(round(autocorr.diag(mod_fits[[1]][,par_conv],
+                      lags = seq(mcmc_ctrl$thin, 4*mcmc_ctrl$thin, mcmc_ctrl$thin),
+                      relative=FALSE), 2))</code></pre>
+<pre><code>##           Lag 100 Lag 200 Lag 300 Lag 400
+## alpha        0.10    0.04    0.00    0.01
+## beta         0.34    0.14    0.06    0.03
+## sigma_r      0.24    0.11    0.07    0.06
+## sigma_s      0.04    0.04    0.01   -0.01
+## pi_tau       0.33    0.23    0.17    0.16
+## pi_eta[1]    0.43    0.33    0.28    0.24
+## pi_eta[2]    0.05   -0.01    0.01    0.00
+## pi_eta[3]    0.00   -0.01    0.04    0.00
+## pi_eta[4]    0.06    0.02    0.00    0.02
+## pi_eta[5]    0.38    0.27    0.21    0.16
+## pi_eta[6]    0.59    0.53    0.51    0.50</code></pre>
+</div>
+</div>
+<div id="beverton-holt" class="section level3">
+<h3>Beverton-Holt</h3>
+<pre class="r"><code>## params/states to return
+par_jags &lt;- c(&quot;alpha&quot;,&quot;E_BH_a&quot;,&quot;mu_BH_a&quot;,
+              &quot;beta&quot;,
+               &quot;Sp&quot;,&quot;Rec&quot;,&quot;tot_ln_Rec&quot;,&quot;ln_RS&quot;,
+              &quot;pi_eta&quot;,&quot;pi_tau&quot;,
+              &quot;sigma_r&quot;,&quot;sigma_s&quot;,&quot;res_ln_Rec&quot;,
+              &quot;lp_age&quot;,&quot;lp_esc&quot;)
+## fit model
 mod_fits[[2]] &lt;- fit_jags(&quot;IPM_BH_AR.txt&quot;, dat_jags, par_jags, init_vals_AR, mcmc_ctrl)</code></pre>
-<pre><code>## Compiling model graph
-##    Resolving undeclared variables
-##    Allocating nodes
-## Graph information:
-##    Observed stochastic nodes: 70
-##    Unobserved stochastic nodes: 109
-##    Total graph size: 1651
+<div id="convergence-checks-1" class="section level4">
+<h4>Convergence checks</h4>
+<pre class="r"><code>## Gelman-Rubin
+gelman.diag(mod_fits[[2]][,par_conv])</code></pre>
+<pre><code>## Potential scale reduction factors:
 ## 
-## Initializing model</code></pre>
+##           Point est. Upper C.I.
+## alpha          1.001       1.00
+## beta           1.003       1.01
+## sigma_r        1.001       1.00
+## sigma_s        1.001       1.00
+## pi_tau         1.008       1.02
+## pi_eta[1]      1.015       1.04
+## pi_eta[2]      1.002       1.01
+## pi_eta[3]      1.001       1.01
+## pi_eta[4]      0.999       1.00
+## pi_eta[5]      1.002       1.01
+## pi_eta[6]      1.112       1.31
+## 
+## Multivariate psrf
+## 
+## 1.12</code></pre>
+<pre class="r"><code>## autocorrelation
+t(round(autocorr.diag(mod_fits[[2]][,par_conv],
+                      lags = seq(mcmc_ctrl$thin, 4*mcmc_ctrl$thin, mcmc_ctrl$thin),
+                      relative=FALSE), 2))</code></pre>
+<pre><code>##           Lag 100 Lag 200 Lag 300 Lag 400
+## alpha        0.20    0.07    0.01    0.02
+## beta         0.20    0.06    0.02    0.03
+## sigma_r      0.16    0.07    0.03    0.02
+## sigma_s      0.03    0.01   -0.01    0.02
+## pi_tau       0.29    0.20    0.18    0.14
+## pi_eta[1]    0.38    0.31    0.26    0.22
+## pi_eta[2]    0.03    0.03    0.00    0.00
+## pi_eta[3]    0.04    0.05    0.00    0.00
+## pi_eta[4]    0.02    0.00   -0.02    0.00
+## pi_eta[5]    0.32    0.19    0.14    0.09
+## pi_eta[6]    0.60    0.53    0.50    0.46</code></pre>
+</div>
+</div>
 </div>
 <div id="models-with-covariates" class="section level2">
 <h2>Models with covariates</h2>
-<pre class="r"><code>par_jags &lt;- c(&quot;alpha&quot;,&quot;E_Rkr_a&quot;,&quot;mu_Rkr_a&quot;,
+<pre class="r"><code>## 1. Data to pass to JAGS
+dat_jags &lt;- list(dat_age = dat_age,
+                 ln_dat_esc = ln_dat_esc,
+                 dat_harv = dat_harv,
+                 mod_cvrs = scl_cvrs[,1],
+                 A = A,
+                 age_min = age_min,
+                 age_max = age_max,
+                 age_skip = age_skip,
+                 n_yrs = n_yrs,
+                 n_fore = n_fore) 
+
+par_jags &lt;- c(&quot;alpha&quot;,&quot;E_Rkr_a&quot;,&quot;mu_Rkr_a&quot;,
               &quot;beta&quot;,
               &quot;gamma&quot;,
                &quot;Sp&quot;,&quot;Rec&quot;,&quot;tot_ln_Rec&quot;,&quot;ln_RS&quot;,
               &quot;pi_vec&quot;,
-              &quot;sigma_r&quot;,&quot;sigma_s&quot;,&quot;res_ln_Rec&quot;)
+              &quot;sigma_r&quot;,&quot;sigma_s&quot;,&quot;res_ln_Rec&quot;)</code></pre>
+<pre class="r"><code>## simplify list to matrix
+# return(do.call(rbind.data.frame, cs))
 
-## simplify list to matrix
-## return(do.call(rbind.data.frame, cs))</code></pre>
-<pre class="r"><code>cn &lt;- colnames(ss[[1]])
-df &lt;- data.frame(par=cn,
-                 q0=rep(NA, length(cn)),
-                 q25=rep(NA, length(cn)),
-                 q50=rep(NA, length(cn)),
-                 q75=rep(NA, length(cn)),
-                 q100=rep(NA, length(cn)))
-for(i in 1:length(cn)) {
-  df[i, -1] &lt;- apply(sapply(ss[,i], quantile), 1, mean)
-}
-df</code></pre>
+m1 &lt;- as.matrix(mod_fits[[1]])
+head(sort(m1[,&quot;lp_age[1]&quot;]), 20)</code></pre>
+<pre><code>##  [1]       -Inf       -Inf -10.581544  -9.522884  -9.243788  -9.165664  -8.929795  -8.920333
+##  [9]  -8.855817  -8.390455  -8.381661  -8.136025  -8.104423  -7.957039  -7.929379  -7.916896
+## [17]  -7.913517  -7.698455  -7.668148  -7.577595</code></pre>
+<pre class="r"><code>head(sort(m1[,&quot;lp_age[2]&quot;]), 20)</code></pre>
+<pre><code>##  [1]       -Inf -13.966127 -12.713122 -11.384384 -10.951450 -10.259596 -10.011445  -9.865455
+##  [9]  -9.802257  -9.746926  -9.690488  -9.168248  -9.012238  -8.819759  -8.816014  -8.608540
+## [17]  -8.587691  -8.567892  -8.541705  -8.501600</code></pre>
+<pre class="r"><code>lp1 &lt;- m1[,grepl(&quot;lp_&quot;, colnames(m1))]
+# apply(is.infinite(lp1), 2, sum)
+
+rm1 &lt;- t(apply(m1, 2, quantile))
+rm1[grepl(&quot;lp_&quot;, rownames(rm1)),]</code></pre>
+<pre><code>##                    0%        25%         50%         75%          100%
+## lp_age[1]        -Inf  -2.963537  -1.6435047  -0.4937098 -6.818347e-06
+## lp_age[2]        -Inf  -3.368678  -2.2542636  -1.3817761 -5.573800e-04
+## lp_age[3]  -20.036003  -8.249823  -7.1695470  -6.4158516 -5.249435e+00
+## lp_age[4]  -12.316384  -4.786614  -3.8102756  -3.0774451 -6.467762e-01
+## lp_age[5]   -9.400536  -4.196232  -3.5771032  -3.1650467 -2.560354e+00
+## lp_age[6]  -10.995788  -5.222340  -4.5921610  -4.1337269 -3.454685e+00
+## lp_age[7]  -14.265230  -7.746695  -6.9691651  -6.4263031 -5.644677e+00
+## lp_age[8]  -21.078399 -10.475112  -9.5220016  -8.8401277 -7.907575e+00
+## lp_age[9]  -18.514646  -9.665720  -8.6564109  -7.9464776 -6.958844e+00
+## lp_age[10] -16.129750  -8.952542  -7.8966697  -7.1236520 -5.856295e+00
+## lp_age[11] -19.695777 -10.421590  -9.3678517  -8.5187940 -7.359068e+00
+## lp_age[12]  -8.756525  -4.408162  -3.6705273  -3.0629924 -1.637366e+00
+## lp_age[13] -18.663314 -10.521918  -9.3844636  -8.5550939 -7.257048e+00
+## lp_age[14] -16.048350  -9.012199  -7.8535935  -7.0153813 -5.686053e+00
+## lp_age[15] -19.454889  -9.257548  -8.2154310  -7.3592620 -6.189611e+00
+## lp_age[16] -12.719650  -5.062370  -4.1935585  -3.5557130 -2.625520e+00
+## lp_age[17] -14.112170  -7.171226  -6.1760895  -5.4829213 -4.505363e+00
+## lp_age[18]  -7.582038  -4.188947  -3.6826925  -3.3450823 -2.848825e+00
+## lp_age[19] -16.753507  -3.955124  -3.0241325  -2.4316290 -1.162892e+00
+## lp_age[20] -13.944382  -3.945128  -3.0342390  -2.4447969 -1.257063e+00
+## lp_age[21] -10.428892  -4.964327  -4.1002687  -3.4397444 -2.006615e+00
+## lp_age[22] -10.179404  -5.041199  -4.3496215  -3.7861346 -2.556551e+00
+## lp_age[23] -11.115603  -5.023306  -4.1991429  -3.5590159 -2.209401e+00
+## lp_age[24] -14.407598  -7.661989  -6.8359348  -6.2191921 -5.414841e+00
+## lp_age[25] -17.788437 -10.706767  -9.6619560  -8.8751989 -7.782255e+00
+## lp_age[26] -20.816647 -12.264115 -11.2209000 -10.3975499 -9.146808e+00
+## lp_age[27] -21.345479 -12.178450 -11.0908393 -10.2879407 -8.979820e+00
+## lp_age[28] -21.397182 -11.303071 -10.2621409  -9.4800178 -8.452881e+00
+## lp_age[29] -20.771090 -12.384494 -11.3390932 -10.5400144 -9.340918e+00
+## lp_age[30] -19.199938 -10.151799  -9.1516773  -8.4394335 -7.371504e+00
+## lp_age[31] -19.586951 -12.511198 -11.4047669 -10.6321591 -9.449345e+00
+## lp_age[32] -22.816836 -11.718645 -10.7189802  -9.9888906 -8.970810e+00
+## lp_age[33] -22.520907 -14.033440 -12.9259389 -12.1053069 -1.088712e+01
+## lp_age[34] -19.348357 -11.922324 -10.8903909 -10.1507833 -9.144588e+00
+## lp_age[35] -18.329689 -10.087889  -9.1203418  -8.4335891 -7.478777e+00
+## lp_age[36] -15.953561  -8.470813  -7.5675410  -6.9357916 -5.946251e+00
+## lp_age[37] -18.582713 -11.532875 -10.5030543  -9.7634935 -8.713773e+00
+## lp_esc[1]  -12.279753  -5.602452  -4.7761831  -4.0764211 -2.304190e+00
+## lp_esc[2]   -9.384773  -4.669057  -3.9692244  -3.3819312 -2.001378e+00
+## lp_esc[3]  -11.123993  -5.508752  -4.6976370  -4.0276785 -2.160462e+00
+## lp_esc[4]   -2.656526  -1.199029  -1.0282060  -0.8874213 -4.588593e-01
+## lp_esc[5]   -6.050821  -1.677365  -1.1760333  -0.9616868 -4.864901e-01
+## lp_esc[6]   -4.780914  -2.231658  -1.7925201  -1.3462710 -4.739196e-01
+## lp_esc[7]   -2.941875  -1.555469  -1.3217046  -1.1311299 -4.719370e-01
+## lp_esc[8]   -3.784230  -1.475504  -1.1683655  -0.9765463 -4.844679e-01
+## lp_esc[9]   -3.351840  -1.384270  -1.1857271  -1.0328124 -4.917002e-01
+## lp_esc[10]  -3.555371  -1.070257  -0.9418037  -0.8355378 -4.612876e-01
+## lp_esc[11]  -2.773939  -1.214982  -1.0532402  -0.9276510 -5.131535e-01
+## lp_esc[12]  -3.077664  -1.073439  -0.9559586  -0.8501493 -4.690576e-01
+## lp_esc[13]  -1.733814  -1.032568  -0.9263580  -0.8270857 -3.942118e-01
+## lp_esc[14]  -2.195406  -1.301617  -1.1528136  -1.0177796 -4.806550e-01
+## lp_esc[15]  -1.705805  -1.027911  -0.9260728  -0.8294292 -4.323398e-01
+## lp_esc[16]  -2.408637  -1.056046  -0.9424637  -0.8383932 -4.238729e-01
+## lp_esc[17]  -3.361607  -1.143144  -0.9985284  -0.8759706 -4.637537e-01
+## lp_esc[18]  -3.821567  -1.274693  -1.0649913  -0.9123086 -4.649747e-01
+## lp_esc[19]  -8.101124  -1.571846  -1.1524612  -0.9487739 -4.724001e-01
+## lp_esc[20]  -9.439176  -1.544962  -1.1393435  -0.9471560 -4.231893e-01
+## lp_esc[21]  -1.537422  -1.020323  -0.9186112  -0.8219469 -4.240061e-01
+## lp_esc[22]  -1.861765  -1.040777  -0.9315666  -0.8298033 -3.936893e-01
+## lp_esc[23]  -2.468263  -1.352683  -1.1954725  -1.0540771 -4.966397e-01
+## lp_esc[24]  -2.312384  -1.324171  -1.1806070  -1.0412604 -5.065264e-01
+## lp_esc[25]  -2.066536  -1.189872  -1.0580764  -0.9402295 -4.514394e-01
+## lp_esc[26]  -1.985670  -1.236508  -1.1087967  -0.9915033 -5.492334e-01
+## lp_esc[27]  -1.601673  -1.053471  -0.9503132  -0.8506407 -4.407972e-01
+## lp_esc[28]  -1.569782  -1.080569  -0.9721968  -0.8677941 -4.826378e-01
+## lp_esc[29]  -1.609086  -1.048412  -0.9366969  -0.8335595 -4.232458e-01
+## lp_esc[30]  -1.832656  -1.060980  -0.9570118  -0.8502859 -4.637582e-01
+## lp_esc[31]  -2.050466  -1.095424  -0.9699314  -0.8590874 -4.680461e-01
+## lp_esc[32]  -2.837838  -1.411582  -1.2048460  -1.0302398 -4.820661e-01
+## lp_esc[33]  -2.093141  -1.186548  -1.0515506  -0.9360595 -5.249892e-01
+## lp_esc[34]  -1.786287  -1.131631  -1.0133812  -0.9018736 -4.909939e-01
+## lp_esc[35]  -1.601545  -1.054777  -0.9493013  -0.8447969 -3.943031e-01
+## lp_esc[36]  -1.588973  -1.042038  -0.9385365  -0.8387834 -3.952155e-01
+## lp_esc[37]  -1.536006  -1.028156  -0.9249057  -0.8272301 -4.246435e-01
+## lp_esc[38]  -1.807708  -1.040344  -0.9328987  -0.8341690 -3.934920e-01
+## lp_esc[39]  -2.118322  -1.055851  -0.9463088  -0.8389475 -4.047714e-01
+## lp_esc[40]  -2.003115  -1.073850  -0.9569630  -0.8478103 -4.697995e-01</code></pre>
+<pre class="r"><code># cn &lt;- colnames(mod_fits[[1]])
+# df &lt;- data.frame(par=cn,
+#                  q0=rep(NA, length(cn)),
+#                  q25=rep(NA, length(cn)),
+#                  q50=rep(NA, length(cn)),
+#                  q75=rep(NA, length(cn)),
+#                  q100=rep(NA, length(cn)))
+# for(i in 1:length(cn)) {
+#   df[i, -1] &lt;- apply(sapply(mod_fits[[1]][,i], quantile), 1, mean)
+# }
+# df</code></pre>
 </div>
 </div>
 

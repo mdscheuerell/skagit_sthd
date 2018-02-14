@@ -6,7 +6,7 @@ model {
   ## PRIORS
   ##--------
   ## alpha = exp(a) = intrinsic productivity
-  alpha ~ dnorm(0,10) T(0,);
+  alpha ~ dnorm(0,0.01) T(0,);
   mu_Rkr_a <- log(alpha);
   E_Rkr_a <- mu_Rkr_a + sigma_r/(2 - 2*phi^2);
   
@@ -26,7 +26,7 @@ model {
   
   ## obs variance for spawners
   tau_s <- 1/sigma_s;
-  sigma_s ~ dnorm(0, 2e-2) T(0,);
+  sigma_s ~ dnorm(0, 0.001) T(0,);
   
   ## maturity schedule
   ## unif vec for Dirch prior

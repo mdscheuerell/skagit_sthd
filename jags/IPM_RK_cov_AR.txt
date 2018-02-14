@@ -5,13 +5,17 @@ model {
   ##--------
   ## PRIORS
   ##--------
+  ##--------
+  ## PRIORS
+  ##--------
   ## alpha = exp(a) = intrinsic productivity
-  alpha ~ dunif(0.1,15);
+  alpha ~ dnorm(0,0.01) T(0,);
   mu_Rkr_a <- log(alpha);
   E_Rkr_a <- mu_Rkr_a + sigma_r/(2 - 2*phi^2);
   
   ## strength of dens depend
-  beta ~ dunif(0,0.01);
+  beta_inv ~ dnorm(0, 1e-9) T(0,);
+  beta <- 1/beta_inv;
   
   ## covariate effects
   # for(i in 1:n_cov) { gamma[i] ~ dnorm(0,0.01) }
@@ -21,17 +25,15 @@ model {
   phi ~ dunif(-0.999,0.999);
   
   ## process variance for recruits model
-  sd_r ~ dunif(0.001,10);
-  tau_r <- pow(sd_r,-2);
-  sigma_r <- pow(sd_r,2);
+  sigma_r ~ dnorm(0, 2e-2) T(0,);
+  tau_r <- 1/sigma_r;
   
   ## innovation in first year
   innov_1 ~ dnorm(0,tau_r*(1-phi*phi));
   
   ## obs variance for spawners
-  sd_s ~ dunif(0.001,10);
-  tau_s <- pow(sd_s,-2);
-  sigma_s <- pow(sd_s,2);
+  tau_s <- 1/sigma_s;
+  sigma_s ~ dnorm(0, 0.001) T(0,);
   
   ## maturity schedule
   ## unif vec for Dirch prior
@@ -39,9 +41,9 @@ model {
   ## hyper-mean for maturity
   pi_eta ~ ddirch(theta);
   ## hyper-prec for maturity
-  pi_tau ~ dunif(0.01,100);
+  pi_tau ~ dnorm(0, 0.01) T(0,);
   for(t in 1:(n_yrs-age_min+n_fore)) { pi_vec[t,1:A] ~ ddirch(pi_eta*pi_tau) }
-  
+
   ## unprojectable early recruits;
   ## hyper mean across all popns
   Rec_mu ~ dnorm(0,0.001);
@@ -50,13 +52,9 @@ model {
   ## precision across all popns
   Rec_tau <- pow(Rec_sig,-2);
   ## multipliers for unobservable total runs
-#  ttl_run_mu ~ dunif(1,5);
-#  ttl_run_tau ~ dunif(1,20);
-  
+
   ## get total cal yr returns for first age_min yrs
   for(i in 1:(age_min+age_skip)) {
-#    ln_tot_Run[i] ~ dnorm(ttl_run_mu*Rec_mu,Rec_tau/ttl_run_tau);
-#    tot_Run[i] <- exp(ln_tot_Run[i]);
     tot_Run_early[i] ~ dnorm(0,1e-5) I(0, 5e4);
     tot_Run[i] <- tot_Run_early[i];
   }
@@ -80,7 +78,6 @@ model {
   
   ## brood-yr recruits by age
   for(a in 1:A) {
-#    Rec[1,a] <- max(1,tot_Rec[1] * pi_vec[1,a]);
     Rec[1,a] <- tot_Rec[1] * pi_vec[1,a];
   }
   
@@ -99,7 +96,6 @@ model {
     ln_RS[t] <- tot_ln_Rec[t] - ln_Sp[t];
     ## brood-yr recruits by age
     for(a in 1:A) {
-#      Rec[t,a] <- max(1,tot_Rec[t] * pi_vec[t,a]);
       Rec[t,a] <- tot_Rec[t] * pi_vec[t,a];
     }
   } ## end t loop over year
