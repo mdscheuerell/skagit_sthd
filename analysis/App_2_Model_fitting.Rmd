@@ -33,25 +33,25 @@ All analyses require the [R software](https://cran.r-project.org/) (v3.4.3) for 
 We also need a few packages that are not included with the base installation of R, so we begin by installing them (if necessary) and then loading them.
 
 ```{r load_pkgs, message = FALSE, warning = FALSE}
-if(!require("rjags")) {
-  install.packages("rjags")
-  library("rjags")
+if(!require("here")) {
+  install.packages("here")
+  library("here")
 }
 if(!require("readr")) {
   install.packages("readr")
   library("readr")
 }
+if(!require("rjags")) {
+  install.packages("rjags")
+  library("rjags")
+}
 if(!require("loo")) {
   install.packages("loo")
   library("loo")
 }
-if(!require("gsl")) {
-  install.packages("gsl")
-  library("gsl")
-}
-if(!require("here")) {
-  install.packages("here")
-  library("here")
+if(!require("ggplot2")) {
+  install.packages("ggplot2")
+  library("ggplot2")
 }
 ## set data & JAGS directories
 datadir <- here("data")
@@ -1124,7 +1124,7 @@ LOO <- data.frame(LOO_both=rep(NA, n_mods),
 # cc_smry_1 <- matrix(NA,n_mods,3)
 # colnames(cc_smry_1) <- c("lo","med","up")
 
-par(mfrow=c(1,2), mai=c(1,1,0.1,0.1), omi=rep(0,4))
+par(mfrow=c(2,2), mai=c(1,1,0.1,0.1), omi=rep(0,4))
 
 ## extract log densities from JAGS objects
 for(i in 1:n_mods) {
@@ -1138,6 +1138,13 @@ for(i in 1:n_mods) {
     tmp_min <- min(tmp_lp, na.rm = TRUE)
     tmp_lp[is.na(tmp_lp)] <- tmp_min * 1.05
   }
+  ## base plot
+  # pp <- ggplot(stars_tidy, aes(x=time, y=count, color=time))
+  # ## jittered dotplot
+  # p1 <- pp + geom_jitter(shape=16, position=position_jitter(0.3))
+  # ## violin plot
+  # p2 <- pp + geom_violin()
+  
   ## calculate LOOIC
   eloo <- loo(tmp_lp)
   plot(eloo)
@@ -1146,9 +1153,6 @@ for(i in 1:n_mods) {
   LOO[i,"LOO_age"] <- eloo$looic
   eloo <- loo(tmp_lp[,grep("esc",colnames(tmp_lp))])
   LOO[i,"LOO_esc"] <- eloo$looic
-  # LOO[i,"LOO_both"] <- waic(tmp_lp)$waic
-  # LOO[i,"LOO_age"] <- waic(tmp_lp[,grep("age",colnames(tmp_lp))])$waic
-  # LOO[i,"LOO_esc"] <- waic(tmp_lp[,grep("esc",colnames(tmp_lp))])$waic
   if(i < 3) {
     cc_smry_1[i,] <- rep(NA,3)
   } else {
