@@ -28,9 +28,6 @@ model {
   sigma_r ~ dnorm(0, 2e-2) T(0,);
   tau_r <- 1/sigma_r;
   
-  ## innovation in first year
-  innov_1 ~ dnorm(0,tau_r*(1-phi*phi));
-  
   ## obs variance for spawners
   tau_s <- 1/sigma_s;
   sigma_s ~ dnorm(0, 0.001) T(0,);

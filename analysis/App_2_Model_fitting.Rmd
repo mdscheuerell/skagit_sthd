@@ -746,9 +746,6 @@ model {
   sigma_r ~ dnorm(0, 2e-2) T(0,);
   tau_r <- 1/sigma_r;
   
-  ## innovation in first year
-  innov_1 ~ dnorm(0,tau_r*(1-phi*phi));
-  
   ## obs variance for spawners
   tau_s <- 1/sigma_s;
   sigma_s ~ dnorm(0, 0.001) T(0,);
@@ -1017,37 +1014,22 @@ init_vals_cov <- function() {
 	     phi = 0.5)
 }
 
-## Data to pass to JAGS
-dat_jags <- list(dat_age = dat_age,
-                 ln_dat_esc = ln_dat_esc,
-                 dat_harv = dat_harv,
-                 mod_cvrs = scl_cvrs[,1],
-                 A = A,
-                 age_min = age_min,
-                 age_max = age_max,
-                 age_skip = age_skip,
-                 n_yrs = n_yrs,
-                 n_fore = n_fore) 
-
-## Only monitor pointwise likelihoods
+## Only monitor pointwise likelihoods for now
 par_jags <- c("lp_age","lp_esc")
 
 ## fit models
-cnt <- 3
-for(i in 1:n_cov) {
+for(i in seq(3, 2*n_cov, 2)) {
   ## get covar of interest
-  mod_cvrs <- scl_cvrs[, i]
+  dat_jags$mod_cvrs <- scl_cvrs[, i]
   ## cnt & time stamp
-  cat("Count = ", cnt, "; Time = ", round(((proc.time()-timer_start)/60)["elapsed"], 1), "\n",
+  cat("Count = ", i, "; Time = ", round(((proc.time()-timer_start)/60)["elapsed"], 1), "\n",
       file = "cnt_time.txt", append = TRUE, sep = "")
   ## Ricker with cov
-  mod_fits[[cnt]] <- fit_jags("IPM_RK_cov_AR.txt", dat_jags, par_jags,
+  mod_fits[[i*2+1]] <- fit_jags("IPM_RK_cov_AR.txt", dat_jags, par_jags,
                               init_vals_cov, mcmc_ctrl)
-  cnt <- cnt + 1
   ## B-H with cov
-  mod_fits[[cnt]] <- fit_jags("IPM_BH_cov_AR.txt", dat_jags, par_jags,
+  mod_fits[[i*2+2]] <- fit_jags("IPM_BH_cov_AR.txt", dat_jags, par_jags,
                               init_vals_cov, mcmc_ctrl)
-  cnt <- cnt + 1
 }
 ```
 
@@ -1113,6 +1095,8 @@ cbind(#errors = c(2,2,rep(c(4,4),n_cov)),
 # tbl_LOO[order(tbl_LOO$LOO),]
 ```
 
+## Via `loo()`
+
 ```{r get_LOOIC_2, fig.height=4, fig.width=7, warning=TRUE}
 n_mods <- length(mod_fits)
 n_mods <- 2
@@ -1124,7 +1108,7 @@ LOO <- data.frame(LOO_both=rep(NA, n_mods),
 # cc_smry_1 <- matrix(NA,n_mods,3)
 # colnames(cc_smry_1) <- c("lo","med","up")
 
-par(mfrow=c(2,2), mai=c(1,1,0.1,0.1), omi=rep(0,4))
+par(mfrow=c(1,2), mai=c(1,1,0.1,0.1), omi=rep(0,4))
 
 ## extract log densities from JAGS objects
 for(i in 1:n_mods) {
@@ -1138,12 +1122,6 @@ for(i in 1:n_mods) {
     tmp_min <- min(tmp_lp, na.rm = TRUE)
     tmp_lp[is.na(tmp_lp)] <- tmp_min * 1.05
   }
-  ## base plot
-  # pp <- ggplot(stars_tidy, aes(x=time, y=count, color=time))
-  # ## jittered dotplot
-  # p1 <- pp + geom_jitter(shape=16, position=position_jitter(0.3))
-  # ## violin plot
-  # p2 <- pp + geom_violin()
   
   ## calculate LOOIC
   eloo <- loo(tmp_lp)
@@ -1182,3 +1160,14 @@ cbind(#errors = c(2,2,rep(c(4,4),n_cov)),
 # tbl_LOO[,!(names(tbl_LOO) %in% c("lag","WAIC"))]
 # tbl_LOO[order(tbl_LOO$LOO),]
 ```
+
+```{r}
+  ## base plot
+  tidy_lp <- tidyr::gather(data.frame(tmp_lp), key = time, value = lp)
+  pp <- ggplot(tidy_lp, aes(x=time, y=lp))
+  ## violin plot
+  p1 <- pp + geom_violin()
+  p1
+
+```
+
