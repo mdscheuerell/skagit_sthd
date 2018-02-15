@@ -44,7 +44,8 @@ model {
   
   ## maturity schedule
   ## unif vec for Dirch prior
-  for(i in 1:A) { theta[i] <- 1 }
+  # for(i in 1:A) { theta[i] <- 1 }
+  theta <- c(1,10,10,5,1,1)
   ## hyper-mean for maturity
   pi_eta ~ ddirch(theta);
   ## hyper-prec for maturity

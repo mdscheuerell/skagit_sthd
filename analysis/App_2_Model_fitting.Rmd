@@ -282,7 +282,8 @@ model {
   
   ## maturity schedule
   ## unif vec for Dirch prior
-  for(i in 1:A) { theta[i] <- 1 }
+  # for(i in 1:A) { theta[i] <- 1 }
+  theta <- c(1,10,10,5,1,1)
   ## hyper-mean for maturity
   pi_eta ~ ddirch(theta);
   ## hyper-prec for maturity
@@ -440,7 +441,8 @@ model {
   
   ## maturity schedule
   ## unif vec for Dirch prior
-  for(i in 1:A) { theta[i] <- 1 }
+  # for(i in 1:A) { theta[i] <- 1 }
+  theta <- c(1,10,10,5,1,1)
   ## hyper-mean for maturity
   pi_eta ~ ddirch(theta);
   ## hyper-prec for maturity
@@ -609,7 +611,8 @@ model {
   
   ## maturity schedule
   ## unif vec for Dirch prior
-  for(i in 1:A) { theta[i] <- 1 }
+  # for(i in 1:A) { theta[i] <- 1 }
+  theta <- c(1,10,10,5,1,1)
   ## hyper-mean for maturity
   pi_eta ~ ddirch(theta);
   ## hyper-prec for maturity
@@ -766,7 +769,8 @@ model {
   
   ## maturity schedule
   ## unif vec for Dirch prior
-  for(i in 1:A) { theta[i] <- 1 }
+  # for(i in 1:A) { theta[i] <- 1 }
+  theta <- c(1,10,10,5,1,1)
   ## hyper-mean for maturity
   pi_eta ~ ddirch(theta);
   ## hyper-prec for maturity
@@ -940,7 +944,7 @@ init_vals_AR <- function() {
 
 ### Ricker
 
-```{r fit_Ricker_base, message = FALSE, warning = FALSE, cache = FALSE}
+```{r fit_Ricker_base, message = FALSE, warning = FALSE, cache = TRUE}
 ## params/states to return
 par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
               "beta",
@@ -950,6 +954,20 @@ par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
               "lp_age","lp_esc")
 ## fit model
 mod_fits[[1]] <- fit_jags("IPM_RK_AR.txt", dat_jags, par_jags, init_vals_AR, mcmc_ctrl)
+```
+
+#### Convergence checks
+
+```{r diag_Ricker}
+par_conv <- c("alpha","beta","sigma_r","sigma_s","pi_tau",paste0("pi_eta[",seq(A-1),"]"))
+
+## Gelman-Rubin
+gelman.diag(mod_fits[[1]][,par_conv])
+
+## autocorrelation
+t(round(autocorr.diag(mod_fits[[1]][,par_conv],
+                      lags = seq(mcmc_ctrl$thin, 4*mcmc_ctrl$thin, mcmc_ctrl$thin),
+                      relative=FALSE), 2))
 ```
 
 ### Beverton-Holt
@@ -968,20 +986,6 @@ mod_fits[[2]] <- fit_jags("IPM_BH_AR.txt", dat_jags, par_jags, init_vals_AR, mcm
 
 #### Convergence checks
 
-```{r diag_Ricker}
-par_conv <- c("alpha","beta","sigma_r","sigma_s","pi_tau",paste0("pi_eta[",seq(A),"]"))
-
-## Gelman-Rubin
-gelman.diag(mod_fits[[1]][,par_conv])
-
-## autocorrelation
-t(round(autocorr.diag(mod_fits[[1]][,par_conv],
-                      lags = seq(mcmc_ctrl$thin, 4*mcmc_ctrl$thin, mcmc_ctrl$thin),
-                      relative=FALSE), 2))
-```
-
-#### Convergence checks
-
 ```{r diag_BH}
 ## Gelman-Rubin
 gelman.diag(mod_fits[[2]][,par_conv])
@@ -992,10 +996,28 @@ t(round(autocorr.diag(mod_fits[[2]][,par_conv],
                       relative=FALSE), 2))
 ```
 
-## Models with covariates
+## Models with 1 covariate
 
-```{r jags_IO_covars, message = FALSE, warning = FALSE, cache = FALSE}
-## 1. Data to pass to JAGS
+```{r jags_IO_covars, message = FALSE, warning = FALSE, cache = TRUE, eval=FALSE}
+## function for inits
+init_vals_cov <- function() {
+	list(alpha = 5,
+	     beta_inv = exp(mean(ln_dat_esc, na.rm = TRUE)),
+	     gamma = 0,
+	     pi_tau = 10,
+	     pi_eta = rep(1,A),
+	     pi_vec = matrix(c(0.01,0.35,0.47,0.15,0.01,0.01),
+	                     n_yrs-age_min+n_fore, A, 
+	                     byrow = TRUE),
+	     Rec_mu = log(1000),
+	     Rec_sig = 0.1,
+	     tot_ln_Rec = rep(log(1000), n_yrs - age_min + n_fore),
+	     tot_Run_early = rep(8000, age_min+age_skip),
+	     innov_1 = 0,
+	     phi = 0.5)
+}
+
+## Data to pass to JAGS
 dat_jags <- list(dat_age = dat_age,
                  ln_dat_esc = ln_dat_esc,
                  dat_harv = dat_harv,
@@ -1007,12 +1029,26 @@ dat_jags <- list(dat_age = dat_age,
                  n_yrs = n_yrs,
                  n_fore = n_fore) 
 
-par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
-              "beta",
-              "gamma",
-               "Sp","Rec","tot_ln_Rec","ln_RS",
-              "pi_vec",
-              "sigma_r","sigma_s","res_ln_Rec")
+## Only monitor pointwise likelihoods
+par_jags <- c("lp_age","lp_esc")
+
+## fit models
+cnt <- 3
+for(i in 1:n_cov) {
+  ## get covar of interest
+  mod_cvrs <- scl_cvrs[, i]
+  ## cnt & time stamp
+  cat("Count = ", cnt, "; Time = ", round(((proc.time()-timer_start)/60)["elapsed"], 1), "\n",
+      file = "cnt_time.txt", append = TRUE, sep = "")
+  ## Ricker with cov
+  mod_fits[[cnt]] <- fit_jags("IPM_RK_cov_AR.txt", dat_jags, par_jags,
+                              init_vals_cov, mcmc_ctrl)
+  cnt <- cnt + 1
+  ## B-H with cov
+  mod_fits[[cnt]] <- fit_jags("IPM_BH_cov_AR.txt", dat_jags, par_jags,
+                              init_vals_cov, mcmc_ctrl)
+  cnt <- cnt + 1
+}
 ```
 
 ```{r stop_timer, include = FALSE}
@@ -1021,11 +1057,14 @@ run_time_in_min <- round(((proc.time()-timer_start)/60)["elapsed"], 1)
 cat(run_time_in_min, file = "run_time_in_min.txt")
 ```
 
-```{r get_LOOIC, warning=FALSE}
+# Model selection
+
+```{r get_LOOIC, warning=TRUE}
 n_mods <- length(mod_fits)
 n_mods <- 2
-LOO <- vector("numeric",n_mods)
-LOO <- data.frame(both=rep(NA, n_mods), age=rep(NA, n_mods), esc=rep(NA, n_mods))
+LOO <- data.frame(LOO_both=rep(NA, n_mods),
+                  LOO_age=rep(NA, n_mods),
+                  LOO_esc=rep(NA, n_mods))
 cc_smry_1 <- matrix(NA,n_mods,3)
 colnames(cc_smry_1) <- c("lo","med","up")
 ## extract log densities from JAGS objects
@@ -1041,9 +1080,9 @@ for(i in 1:n_mods) {
     tmp_lp[is.na(tmp_lp)] <- tmp_min * 1.05
   }
   ## calculate LOOIC
-  LOO[i,"both"] <- -2*waic(tmp_lp)$elpd_loo
-  LOO[i,"age"] <- -2*waic(tmp_lp[,grep("age",colnames(tmp_lp))])$elpd_loo
-  LOO[i,"esc"] <- -2*waic(tmp_lp[,grep("esc",colnames(tmp_lp))])$elpd_loo
+  LOO[i,"LOO_both"] <- -2*waic(tmp_lp)$elpd_loo
+  LOO[i,"LOO_age"] <- -2*waic(tmp_lp[,grep("age",colnames(tmp_lp))])$elpd_loo
+  LOO[i,"LOO_esc"] <- -2*waic(tmp_lp[,grep("esc",colnames(tmp_lp))])$elpd_loo
   if(i < 3) {
     cc_smry_1[i,] <- rep(NA,3)
   } else {
@@ -1054,6 +1093,73 @@ for(i in 1:n_mods) {
 
 ## delta-LOOIC
 d_LOO <- round(t(t(LOO) - apply(t(LOO), 1, min)), 1)
+colnames(d_LOO) <- c("d_LOO_both","d_LOO_age","d_LOO_esc")
+
+## wt_LOO <- exp(-0.5*LOO)/sum(exp(-0.5*LOO))
+## Table of model selection results
+
+cbind(#errors = c(2,2,rep(c(4,4),n_cov)),
+                      model = rep(c("Ricker","B-H"),n_mods/2),
+                      #covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2)),
+                      round(LOO,1),
+                      d_LOO
+                      )
+
+# tbl_LOO
+# write.csv(tbl_LOO,  row.names = FALSE,
+#           file = "Skagit_steelhead_model_selection.csv")
+# best_idx <- which(tbl_LOO$d_LOO==0)
+# tbl_LOO[,!(names(tbl_LOO) %in% c("lag","WAIC"))]
+# tbl_LOO[order(tbl_LOO$LOO),]
+```
+
+```{r get_LOOIC_2, fig.height=4, fig.width=7, warning=TRUE}
+n_mods <- length(mod_fits)
+n_mods <- 2
+## empty df for LOOIC 
+LOO <- data.frame(LOO_both=rep(NA, n_mods),
+                  LOO_age=rep(NA, n_mods),
+                  LOO_esc=rep(NA, n_mods))
+## empty mat for covar 
+# cc_smry_1 <- matrix(NA,n_mods,3)
+# colnames(cc_smry_1) <- c("lo","med","up")
+
+par(mfrow=c(1,2), mai=c(1,1,0.1,0.1), omi=rep(0,4))
+
+## extract log densities from JAGS objects
+for(i in 1:n_mods) {
+  ## convert mcmc.list to matrix
+  tmp_lp <- as.matrix(mod_fits[[i]])
+  ## extract pointwise likelihoods
+  tmp_lp <- tmp_lp[,grepl("lp_", colnames(tmp_lp))]
+  ## if numerical underflows, convert -Inf to 5% less than min(likelihood)
+  if(any(is.infinite(tmp_lp))) {
+    tmp_lp[is.infinite(tmp_lp)] <- NA
+    tmp_min <- min(tmp_lp, na.rm = TRUE)
+    tmp_lp[is.na(tmp_lp)] <- tmp_min * 1.05
+  }
+  ## calculate LOOIC
+  eloo <- loo(tmp_lp)
+  plot(eloo)
+  LOO[i,"LOO_both"] <- eloo$looic
+  eloo <- loo(tmp_lp[,grep("age",colnames(tmp_lp))])
+  LOO[i,"LOO_age"] <- eloo$looic
+  eloo <- loo(tmp_lp[,grep("esc",colnames(tmp_lp))])
+  LOO[i,"LOO_esc"] <- eloo$looic
+  # LOO[i,"LOO_both"] <- waic(tmp_lp)$waic
+  # LOO[i,"LOO_age"] <- waic(tmp_lp[,grep("age",colnames(tmp_lp))])$waic
+  # LOO[i,"LOO_esc"] <- waic(tmp_lp[,grep("esc",colnames(tmp_lp))])$waic
+  if(i < 3) {
+    cc_smry_1[i,] <- rep(NA,3)
+  } else {
+    smy <- summary(mod_fits[[i]])
+    # cc_smry_1[i,] <- mod_fits[[i]]$BUGSoutput$summary["gamma", c("2.5%","50%","97.5%")]
+  }
+}
+
+## delta-LOOIC
+d_LOO <- round(t(t(LOO) - apply(t(LOO), 1, min)), 1)
+colnames(d_LOO) <- c("d_LOO_both","d_LOO_age","d_LOO_esc")
 
 ## wt_LOO <- exp(-0.5*LOO)/sum(exp(-0.5*LOO))
 ## Table of model selection results
