@@ -1015,7 +1015,7 @@ init_vals_cov <- function() {
 }
 
 ## Only monitor pointwise likelihoods for now
-par_jags <- c("lp_age","lp_esc")
+par_jags <- c("gamma","lp_age","lp_esc")
 
 ## fit models
 for(i in 1:n_cov) {
@@ -1041,7 +1041,7 @@ cat(run_time_in_min, file = "run_time_in_min.txt")
 
 # Model selection
 
-```{r get_LOOIC, warning=FALSE}
+```{r get_LOOIC, warning=FALSE, eval=FALSE}
 n_mods <- length(mod_fits)
 LOO <- data.frame(LOO_both=rep(NA, n_mods),
                   LOO_age=rep(NA, n_mods),
@@ -1103,8 +1103,8 @@ LOO <- data.frame(LOO_both=rep(NA, n_mods),
                   LOO_age=rep(NA, n_mods),
                   LOO_esc=rep(NA, n_mods))
 ## empty mat for covar 
-# cc_smry_1 <- matrix(NA,n_mods,3)
-# colnames(cc_smry_1) <- c("lo","med","up")
+cc_smry_1 <- matrix(NA,n_mods,3)
+colnames(cc_smry_1) <- c("lo","med","up")
 
 par(mfrow=c(1,2), mai=c(1,1,0.1,0.1), omi=rep(0,4))
 
@@ -1129,12 +1129,12 @@ for(i in 1:n_mods) {
   LOO[i,"LOO_age"] <- eloo$looic
   eloo <- loo(tmp_lp[,grep("esc",colnames(tmp_lp))])
   LOO[i,"LOO_esc"] <- eloo$looic
-  # if(i < 3) {
-  #   cc_smry_1[i,] <- rep(NA,3)
-  # } else {
-  #   smy <- summary(mod_fits[[i]])
-  #   cc_smry_1[i,] <- mod_fits[[i]]$BUGSoutput$summary["gamma", c("2.5%","50%","97.5%")]
-  # }
+  if(i < 3) {
+    cc_smry_1[i,] <- rep(NA,3)
+  } else {
+    cc_smry_1[i,] <- summary(mod_fits[[i]])$quantiles["gamma", c(1,3,5)]
+    # cc_smry_1[i,] <- mod_fits[[i]]$BUGSoutput$summary["gamma", c("2.5%","50%","97.5%")]
+  }
 }
 
 ## delta-LOOIC
@@ -1146,7 +1146,8 @@ colnames(d_LOO) <- c("d_LOO_both","d_LOO_age","d_LOO_esc")
 tbl_LOO <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
                  covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2)),
                  round(LOO,1),
-                 d_LOO)
+                 d_LOO,
+                 round(cc_smry_1, 3))
 tbl_LOO
 # write.csv(tbl_LOO,  row.names = FALSE,
 #           file = "Skagit_steelhead_model_selection.csv")
@@ -1155,13 +1156,13 @@ tbl_LOO
 # tbl_LOO[order(tbl_LOO$LOO),]
 ```
 
-```{r lp_violins, fig.height=4, fig.width=7}
-  ## base plot
-  tidy_lp <- tidyr::gather(data.frame(tmp_lp), key = time, value = lp)
-  pp <- ggplot(tidy_lp, aes(x=time, y=lp))
-  ## violin plot
-  p1 <- pp + geom_violin()
-  p1
+```{r lp_violins, fig.height=4, fig.width=7, eval=FALSE}
+## base plot
+tidy_lp <- tidyr::gather(data.frame(tmp_lp), key = time, value = lp)
+pp <- ggplot(tidy_lp, aes(x=time, y=lp))
+## violin plot
+p1 <- pp + geom_violin()
+p1
 
 ```
 
