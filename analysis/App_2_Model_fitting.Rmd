@@ -1003,7 +1003,7 @@ cat(run_time_in_min, file = "run_time_in_min.txt")
 
 # Model selection
 
-## Via `waic()`.
+## Via `waic()` with delta values and covariate effects.
 
 ```{r get_WAIC, warning=FALSE}
 n_mods <- length(mod_fits)
@@ -1055,10 +1055,56 @@ tbl_WAIC
 # tbl_LOO[order(tbl_LOO$LOO),]
 ```
 
+Via `waic()` and `compare()` with full table of results.
+
+```{r get_WAIC_c, warning=FALSE}
+WAIC_both <- WAIC_age <- WAIC_esc <- vector("list", n_mods)
+## extract log densities from JAGS objects
+for(i in 1:n_mods) {
+  ## convert mcmc.list to matrix
+  tmp_lp <- as.matrix(mod_fits[[i]])
+  ## extract pointwise likelihoods
+  tmp_lp <- tmp_lp[,grepl("lp_", colnames(tmp_lp))]
+  ## if numerical underflows, convert -Inf to 5% less than min(likelihood)
+  if(any(is.infinite(tmp_lp))) {
+    tmp_lp[is.infinite(tmp_lp)] <- NA
+    tmp_min <- min(tmp_lp, na.rm = TRUE)
+    tmp_lp[is.na(tmp_lp)] <- tmp_min * 1.05
+  }
+  ## calculate WAIC
+  WAIC_both[[i]] <- waic(tmp_lp)
+  WAIC_age[[i]] <- waic(tmp_lp[,grep("age",colnames(tmp_lp))])
+  WAIC_esc[[i]] <- waic(tmp_lp[,grep("esc",colnames(tmp_lp))])
+}
+
+## WAIC for all data
+tbl_WAIC_both <- round(compare(x = WAIC_both), 2)
+rownames(tbl_WAIC_both) <- sub("model", "", rownames(tbl_WAIC_both))
+tbl_WAIC_both <- tbl_WAIC_both[order(as.numeric(rownames(tbl_WAIC_both))), ]
+cbind(model = rep(c("Ricker","B-H"),n_mods/2),
+      covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2)),
+      as.data.frame(tbl_WAIC_both))
+      
+## WAIC for age data only
+tbl_WAIC_age <- round(compare(x = WAIC_both), 2)
+rownames(tbl_WAIC_age) <- sub("model", "", rownames(tbl_WAIC_age))
+tbl_WAIC_age <- tbl_WAIC_age[order(as.numeric(rownames(tbl_WAIC_age))), ]
+cbind(model = rep(c("Ricker","B-H"),n_mods/2),
+      covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2)),
+      as.data.frame(tbl_WAIC_age))
+
+## WAIC for escapement data only
+tbl_WAIC_esc <- round(compare(x = WAIC_both), 2)
+rownames(tbl_WAIC_esc) <- sub("model", "", rownames(tbl_WAIC_esc))
+tbl_WAIC_esc <- tbl_WAIC_esc[order(as.numeric(rownames(tbl_WAIC_esc))), ]
+cbind(model = rep(c("Ricker","B-H"),n_mods/2),
+      covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2)),
+      as.data.frame(tbl_WAIC_esc))
+```
+
 ## Via `loo()`
 
 ```{r get_LOOIC, fig.height=4, fig.width=7, warning=FALSE}
-n_mods <- length(mod_fits)
 ## empty df for LOOIC 
 LOO <- data.frame(LOO_both=rep(NA, n_mods),
                   LOO_age=rep(NA, n_mods),
@@ -1115,6 +1161,53 @@ tbl_LOO
 # best_idx <- which(tbl_LOO$dLOO==0)
 # tbl_LOO[,!(names(tbl_LOO) %in% c("lag","WAIC"))]
 # tbl_LOO[order(tbl_LOO$LOO),]
+```
+
+Via `loo()` and `compare()` with full table of results.
+
+```{r get_LOOIC_c, warning=FALSE}
+LOO_both <- LOO_age <- LOO_esc <- vector("list", n_mods)
+## extract log densities from JAGS objects
+for(i in 1:n_mods) {
+  ## convert mcmc.list to matrix
+  tmp_lp <- as.matrix(mod_fits[[i]])
+  ## extract pointwise likelihoods
+  tmp_lp <- tmp_lp[,grepl("lp_", colnames(tmp_lp))]
+  ## if numerical underflows, convert -Inf to 5% less than min(likelihood)
+  if(any(is.infinite(tmp_lp))) {
+    tmp_lp[is.infinite(tmp_lp)] <- NA
+    tmp_min <- min(tmp_lp, na.rm = TRUE)
+    tmp_lp[is.na(tmp_lp)] <- tmp_min * 1.05
+  }
+  ## calculate WAIC
+  LOO_both[[i]] <- loo(tmp_lp)
+  LOO_age[[i]] <- loo(tmp_lp[,grep("age",colnames(tmp_lp))])
+  LOO_esc[[i]] <- loo(tmp_lp[,grep("esc",colnames(tmp_lp))])
+}
+
+## WAIC for all data
+tbl_LOO_both <- round(compare(x = LOO_both), 2)
+rownames(tbl_LOO_both) <- sub("model", "", rownames(tbl_LOO_both))
+tbl_LOO_both <- tbl_LOO_both[order(as.numeric(rownames(tbl_LOO_both))), ]
+cbind(model = rep(c("Ricker","B-H"),n_mods/2),
+      covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2)),
+      as.data.frame(tbl_LOO_both))
+      
+## WAIC for age data only
+tbl_LOO_age <- round(compare(x = LOO_both), 2)
+rownames(tbl_LOO_age) <- sub("model", "", rownames(tbl_LOO_age))
+tbl_LOO_age <- tbl_LOO_age[order(as.numeric(rownames(tbl_LOO_age))), ]
+cbind(model = rep(c("Ricker","B-H"),n_mods/2),
+      covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2)),
+      as.data.frame(tbl_LOO_age))
+
+## WAIC for escapement data only
+tbl_LOO_esc <- round(compare(x = LOO_both), 2)
+rownames(tbl_LOO_esc) <- sub("model", "", rownames(tbl_LOO_esc))
+tbl_LOO_esc <- tbl_LOO_esc[order(as.numeric(rownames(tbl_LOO_esc))), ]
+cbind(model = rep(c("Ricker","B-H"),n_mods/2),
+      covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2)),
+      as.data.frame(tbl_LOO_esc))
 ```
 
 ```{r lp_violins, fig.height=4, fig.width=7, eval=FALSE}
