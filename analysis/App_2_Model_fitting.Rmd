@@ -79,44 +79,6 @@ fit_jags <- function(model, data, params, inits, ctrl, dir = jagsdir) {
                    quiet = TRUE)
   return(coda.samples(jm, params, ctrl$length, ctrl$thin))
 }
-  
-## colVars; from Gelman
-## returns the column-wise variance of a matrix
-colVars <- function(a) {
-	n <- dim(a)[[1]]
-	c <- dim(a)[[2]]
-	mm <- matrix(.colMeans(a, n, c), n, c, byrow = TRUE)
-	return(.colMeans(((a - mm) ^ 2), n, c) * n / (n - 1))
-}
-
-## waic; from Gelman
-## computes WAIC based on pointwise log-like
-waic <- function(log_lik) {
-  S <- nrow(log_lik)
-  n <- ncol(log_lik)
-  lpd <- log(colMeans(exp(log_lik)))
-  p_waic <- colVars(log_lik)
-  elpd_waic <- lpd - p_waic
-  waic <- -2*elpd_waic
-  loo_weights_raw <- 1/exp(log_lik-max(log_lik))
-  loo_weights_normalized <- loo_weights_raw /
-    matrix(colMeans(loo_weights_raw),nrow = S,ncol = n,byrow = TRUE)
-  loo_weights_regularized <- pmin(loo_weights_normalized, sqrt(S))
-  elpd_loo <- log(colMeans(exp(log_lik)*loo_weights_regularized) /
-                    colMeans(loo_weights_regularized))
-  p_loo <- lpd - elpd_loo
-  pointwise <- cbind(waic,lpd,p_waic,elpd_waic,p_loo,elpd_loo)
-  total <- colSums(pointwise)
-  se <- sqrt(n*colVars(pointwise))
-  return(list(waic = total["waic"],
-              elpd_waic = total["elpd_waic"],
-              p_waic = total["p_waic"],
-              elpd_loo = total["elpd_loo"],
-              p_loo = total["p_loo"],
-              pointwise = pointwise,
-              total = total,
-              se = se))
-}
 ```
 
 # User inputs
@@ -1041,11 +1003,13 @@ cat(run_time_in_min, file = "run_time_in_min.txt")
 
 # Model selection
 
-```{r get_LOOIC, warning=FALSE, eval=FALSE}
+## Via `waic()`.
+
+```{r get_WAIC, warning=FALSE}
 n_mods <- length(mod_fits)
-LOO <- data.frame(LOO_both=rep(NA, n_mods),
-                  LOO_age=rep(NA, n_mods),
-                  LOO_esc=rep(NA, n_mods))
+WAIC <- data.frame(WAIC_both=rep(NA, n_mods),
+                   WAIC_age=rep(NA, n_mods),
+                   WAIC_esc=rep(NA, n_mods))
 cc_smry_1 <- matrix(NA,n_mods,3)
 colnames(cc_smry_1) <- c("lo","med","up")
 ## extract log densities from JAGS objects
@@ -1060,43 +1024,40 @@ for(i in 1:n_mods) {
     tmp_min <- min(tmp_lp, na.rm = TRUE)
     tmp_lp[is.na(tmp_lp)] <- tmp_min * 1.05
   }
-  ## calculate LOOIC
-  LOO[i,"LOO_both"] <- -2*waic(tmp_lp)$elpd_loo
-  LOO[i,"LOO_age"] <- -2*waic(tmp_lp[,grep("age",colnames(tmp_lp))])$elpd_loo
-  LOO[i,"LOO_esc"] <- -2*waic(tmp_lp[,grep("esc",colnames(tmp_lp))])$elpd_loo
-  # if(i < 3) {
-  #   cc_smry_1[i,] <- rep(NA,3)
-  # } else {
-  #   smy <- summary(mod_fits[[i]])
-  #   cc_smry_1[i,] <- mod_fits[[i]]$BUGSoutput$summary["gamma", c("2.5%","50%","97.5%")]
-  # }
+  ## calculate WAIC
+  WAIC[i,"WAIC_both"] <- waic(tmp_lp)$waic
+  WAIC[i,"WAIC_age"] <- waic(tmp_lp[,grep("age",colnames(tmp_lp))])$waic
+  WAIC[i,"WAIC_esc"] <- waic(tmp_lp[,grep("esc",colnames(tmp_lp))])$waic
+  if(i < 3) {
+    cc_smry_1[i,] <- rep(NA,3)
+  } else {
+    cc_smry_1[i,] <- summary(mod_fits[[i]])$quantiles["gamma", c(1,3,5)]
+    # cc_smry_1[i,] <- mod_fits[[i]]$BUGSoutput$summary["gamma", c("2.5%","50%","97.5%")]
+  }
 }
 
-## delta-LOOIC
-d_LOO <- round(t(t(LOO) - apply(t(LOO), 1, min)), 1)
-colnames(d_LOO) <- c("d_LOO_both","d_LOO_age","d_LOO_esc")
+## delta-WAIC
+dWAIC <- round(t(t(WAIC) - apply(t(WAIC), 1, min)), 1)
+colnames(dWAIC) <- c("dWAIC_both","dWAIC_age","dWAIC_esc")
 
 ## wt_LOO <- exp(-0.5*LOO)/sum(exp(-0.5*LOO))
 ## Table of model selection results
-
-cbind(#errors = c(2,2,rep(c(4,4),n_cov)),
-                      model = rep(c("Ricker","B-H"),n_mods/2),
-                      covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2)),
-                      round(LOO,1),
-                      d_LOO
-                      )
-
-# tbl_LOO
+tbl_WAIC <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
+                  covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2)),
+                  round(WAIC,1),
+                  dWAIC,
+                  round(cc_smry_1, 2))
+tbl_WAIC
 # write.csv(tbl_LOO,  row.names = FALSE,
 #           file = "Skagit_steelhead_model_selection.csv")
-# best_idx <- which(tbl_LOO$d_LOO==0)
+# best_idx <- which(tbl_LOO$dLOO==0)
 # tbl_LOO[,!(names(tbl_LOO) %in% c("lag","WAIC"))]
 # tbl_LOO[order(tbl_LOO$LOO),]
 ```
 
 ## Via `loo()`
 
-```{r get_LOOIC_2, fig.height=4, fig.width=7, warning=FALSE}
+```{r get_LOOIC, fig.height=4, fig.width=7, warning=FALSE}
 n_mods <- length(mod_fits)
 ## empty df for LOOIC 
 LOO <- data.frame(LOO_both=rep(NA, n_mods),
@@ -1138,20 +1099,20 @@ for(i in 1:n_mods) {
 }
 
 ## delta-LOOIC
-d_LOO <- round(t(t(LOO) - apply(t(LOO), 1, min)), 1)
-colnames(d_LOO) <- c("d_LOO_both","d_LOO_age","d_LOO_esc")
+dLOO <- round(t(t(LOO) - apply(t(LOO), 1, min)), 1)
+colnames(dLOO) <- c("dLOO_both","dLOO_age","dLOO_esc")
 
 ## wt_LOO <- exp(-0.5*LOO)/sum(exp(-0.5*LOO))
 ## Table of model selection results
 tbl_LOO <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
                  covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2)),
                  round(LOO,1),
-                 d_LOO,
-                 round(cc_smry_1, 3))
+                 dLOO,
+                 round(cc_smry_1, 2))
 tbl_LOO
 # write.csv(tbl_LOO,  row.names = FALSE,
 #           file = "Skagit_steelhead_model_selection.csv")
-# best_idx <- which(tbl_LOO$d_LOO==0)
+# best_idx <- which(tbl_LOO$dLOO==0)
 # tbl_LOO[,!(names(tbl_LOO) %in% c("lag","WAIC"))]
 # tbl_LOO[order(tbl_LOO$LOO),]
 ```
