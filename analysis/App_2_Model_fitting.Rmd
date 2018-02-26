@@ -862,7 +862,7 @@ dat_jags <- list(dat_age = dat_age,
 ## 3. MCMC control params
 mcmc_ctrl <- list(
   chains = 4,
-  length = 1e5,
+  length = 1.25e5,
   burn = 5e4,
   thin = 100
 )
