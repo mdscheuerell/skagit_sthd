@@ -381,7 +381,6 @@ model {
   beta <- 1/beta_inv;
   
   ## covariate effects
-  # for(i in 1:n_cov) { gamma[i] ~ dnorm(0,0.01) }
   gamma ~ dnorm(0,0.01);
 
   ## AR(1) coef for proc errors
@@ -428,7 +427,6 @@ model {
   ##------------
   ## 1st brood yr requires different innovation
   ## predicted recruits in BY t
-  # covar[1] <- inprod(gamma,scl_cvrs[1,]);
   covar[1] <- gamma*mod_cvrs[1];
   ln_Rkr_a[1] <- mu_Rkr_a + covar[1]; 
   E_ln_Rec[1] <- ln_Rkr_a[1] + ln_Sp[1] - beta*Sp[1] + phi*innov_1;
@@ -448,7 +446,6 @@ model {
   ## brood years 2:(n_yrs-age_min)
   for(t in 2:(n_yrs-age_min+n_fore)) {
     ## predicted recruits in BY t
-    # covar[t] <- inprod(gamma, scl_cvrs[t,]);
     covar[t] <- gamma*mod_cvrs[t];
     ln_Rkr_a[t] <- mu_Rkr_a + covar[t]; 
     E_ln_Rec[t] <- ln_Rkr_a[t] + ln_Sp[t] - beta*Sp[t] + phi*res_ln_Rec[t-1];
@@ -589,7 +586,6 @@ model {
   ## 1st brood yr requires different innovation
   ## predicted recruits in BY t
   covar[1] <- inprod(gamma,mod_cvrs[1,]);
-  # covar[1] <- gamma*mod_cvrs[1];
   ln_Rkr_a[1] <- mu_Rkr_a + covar[1]; 
   E_ln_Rec[1] <- ln_Rkr_a[1] + ln_Sp[1] - beta*Sp[1] + phi*innov_1;
   tot_ln_Rec[1] ~ dnorm(E_ln_Rec[1],tau_r);
@@ -609,7 +605,6 @@ model {
   for(t in 2:(n_yrs-age_min+n_fore)) {
     ## predicted recruits in BY t
     covar[t] <- inprod(gamma, mod_cvrs[t,]);
-    # covar[t] <- gamma*mod_cvrs[t];
     ln_Rkr_a[t] <- mu_Rkr_a + covar[t]; 
     E_ln_Rec[t] <- ln_Rkr_a[t] + ln_Sp[t] - beta*Sp[t] + phi*res_ln_Rec[t-1];
     tot_ln_Rec[t] ~ dnorm(E_ln_Rec[t],tau_r);
@@ -852,7 +847,6 @@ model {
   beta <- 1/beta_inv;
   
   ## covariate effects
-  # for(i in 1:n_cov) { gamma[i] ~ dnorm(0,0.01) }
   gamma ~ dnorm(0,0.01);
 
   ## AR(1) coef for proc errors
@@ -897,7 +891,6 @@ model {
   ## LIKELIHOOD
   ##------------
   ## predicted recruits in BY t
-  # covar[1] <- inprod(gamma,scl_cvrs[1,]);
   covar[1] <- gamma*mod_cvrs[1];
   ln_BH_a[1] <- mu_BH_a + covar[1]; 
   E_ln_Rec[1] <- ln_BH_a[1] + ln_Sp[1] - log(1 + beta*Sp[1]) + phi*innov_1;
@@ -917,7 +910,6 @@ model {
   ## brood years 2:(n_yrs-age_min)
   for(t in 2:(n_yrs-age_min+n_fore)) {
     ## predicted recruits in BY t
-    # covar[t] <- inprod(gamma, scl_cvrs[t,]);
     covar[t] <- gamma*mod_cvrs[t];
     ln_BH_a[t] <- mu_BH_a + covar[t]; 
     E_ln_Rec[t] <- ln_BH_a[t] + ln_Sp[t] - log(1 + beta*Sp[t]) + phi*res_ln_Rec[t-1];
@@ -1056,7 +1048,6 @@ model {
   ##------------
   ## predicted recruits in BY t
   covar[1] <- inprod(gamma,mod_cvrs[1,]);
-  # covar[1] <- gamma*mod_cvrs[1];
   ln_BH_a[1] <- mu_BH_a + covar[1]; 
   E_ln_Rec[1] <- ln_BH_a[1] + ln_Sp[1] - log(1 + beta*Sp[1]) + phi*innov_1;
   tot_ln_Rec[1] ~ dnorm(E_ln_Rec[1],tau_r);
@@ -1076,7 +1067,6 @@ model {
   for(t in 2:(n_yrs-age_min+n_fore)) {
     ## predicted recruits in BY t
     covar[t] <- inprod(gamma, mod_cvrs[t,]);
-    # covar[t] <- gamma*mod_cvrs[t];
     ln_BH_a[t] <- mu_BH_a + covar[t]; 
     E_ln_Rec[t] <- ln_BH_a[t] + ln_Sp[t] - log(1 + beta*Sp[t]) + phi*res_ln_Rec[t-1];
     tot_ln_Rec[t] ~ dnorm(E_ln_Rec[t],tau_r);
@@ -1296,6 +1286,49 @@ par_jags <- c("gamma","lp_age","lp_esc")
 
 ## fit models
 for(i in 1:n_cov) {
+  ## get covar of interest
+  dat_jags$mod_cvrs <- scl_cvrs[, i]
+  ## cnt & time stamp
+  cat("Count = ", i, "; Time = ", round(((proc.time()-timer_start)/60)["elapsed"], 1), "\n",
+      file = "cnt_time.txt", append = TRUE, sep = "")
+  ## Ricker with cov
+  mod_fits[[i*2+1]] <- fit_jags("IPM_RK_cov_AR.txt", dat_jags, par_jags,
+                              init_vals_cov, mcmc_ctrl)
+  ## B-H with cov
+  mod_fits[[i*2+2]] <- fit_jags("IPM_BH_cov_AR.txt", dat_jags, par_jags,
+                              init_vals_cov, mcmc_ctrl)
+}
+```
+
+## Models with 2+ covariates
+
+```{r jags_IO_covars_2, message = FALSE, warning = FALSE, cache = TRUE, eval=FALSE}
+## function for inits
+init_vals_cov <- function() {
+	list(alpha = 5,
+	     beta_inv = exp(mean(ln_dat_esc, na.rm = TRUE)),
+	     gamma = rep(0,n_cov),
+	     pi_tau = 10,
+	     pi_eta = rep(1,A),
+	     pi_vec = matrix(c(0.01,0.35,0.47,0.15,0.01,0.01),
+	                     n_yrs-age_min+n_fore, A, 
+	                     byrow = TRUE),
+	     Rec_mu = log(1000),
+	     Rec_sig = 0.1,
+	     tot_ln_Rec = rep(log(1000), n_yrs - age_min + n_fore),
+	     tot_Run_early = rep(8000, age_min+age_skip),
+	     innov_1 = 0,
+	     phi = 0.5)
+}
+
+## Only monitor pointwise likelihoods for now
+par_jags <- c("gamma","lp_age","lp_esc")
+
+## set of multi-covariate models
+## NEED COVAR SET HERE
+
+## fit models
+for(i in 1:n_cov2) {
   ## get covar of interest
   dat_jags$mod_cvrs <- scl_cvrs[, i]
   ## cnt & time stamp
