@@ -520,7 +520,7 @@ model {
 
 ## Ricker with 2+ covars & AR(1)
 
-```{r JAGS_RK_cov_AR}
+```{r JAGS_RK_cov2_AR}
 cat("
 
 model {
@@ -984,7 +984,7 @@ model {
 
 ## Beverton-Holt with 2+ covars & AR(1)
 
-```{r JAGS_BH_cov_AR}
+```{r JAGS_BH_cov2_AR}
 cat("
 
 model {
@@ -1186,7 +1186,7 @@ Please note that the following code takes ~20 min to run on a quad-core machine 
 
 ```{r jags_IO_base}
 ## empty list for fits
-mod_fits <- vector("list", 2*(1+n_cov))
+mod_fits <- vector("list", 2*(1+n_cov+3))
 
 ## function for inits
 init_vals_AR <- function() {
@@ -1302,12 +1302,12 @@ for(i in 1:n_cov) {
 
 ## Models with 2+ covariates
 
-```{r jags_IO_covars_2, message = FALSE, warning = FALSE, cache = TRUE, eval=FALSE}
+```{r jags_IO_covars_2, message = FALSE, warning = FALSE, cache = TRUE, eval=TRUE}
 ## function for inits
-init_vals_cov <- function() {
+init_vals_cov2 <- function() {
 	list(alpha = 5,
 	     beta_inv = exp(mean(ln_dat_esc, na.rm = TRUE)),
-	     gamma = rep(0,n_cov),
+	     gamma = rep(0,3),
 	     pi_tau = 10,
 	     pi_eta = rep(1,A),
 	     pi_vec = matrix(c(0.01,0.35,0.47,0.15,0.01,0.01),
@@ -1321,25 +1321,26 @@ init_vals_cov <- function() {
 	     phi = 0.5)
 }
 
-## Only monitor pointwise likelihoods for now
-par_jags <- c("gamma","lp_age","lp_esc")
-
 ## set of multi-covariate models
-## NEED COVAR SET HERE
+cset2 <- c("NPGO","STI","Hrel")
+
+## counter for model indexing
+cnt <- 13
 
 ## fit models
-for(i in 1:n_cov2) {
+for(i in 1:3) {
   ## get covar of interest
-  dat_jags$mod_cvrs <- scl_cvrs[, i]
+  dat_jags$mod_cvrs <- scl_cvrs[, c("flow_wtr","flow_sum",cset2[i])]
   ## cnt & time stamp
-  cat("Count = ", i, "; Time = ", round(((proc.time()-timer_start)/60)["elapsed"], 1), "\n",
+  cat("Count = ", cnt, "; Time = ", round(((proc.time()-timer_start)/60)["elapsed"], 1), "\n",
       file = "cnt_time.txt", append = TRUE, sep = "")
   ## Ricker with cov
-  mod_fits[[i*2+1]] <- fit_jags("IPM_RK_cov_AR.txt", dat_jags, par_jags,
-                              init_vals_cov, mcmc_ctrl)
+  mod_fits[[cnt]] <- fit_jags("IPM_RK_cov2_AR.txt", dat_jags, par_jags,
+                              init_vals_cov2, mcmc_ctrl)
   ## B-H with cov
-  mod_fits[[i*2+2]] <- fit_jags("IPM_BH_cov_AR.txt", dat_jags, par_jags,
-                              init_vals_cov, mcmc_ctrl)
+  mod_fits[[cnt+1]] <- fit_jags("IPM_BH_cov2_AR.txt", dat_jags, par_jags,
+                              init_vals_cov2, mcmc_ctrl)
+  cnt <- cnt + 2
 }
 ```
 
