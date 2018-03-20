@@ -1323,6 +1323,7 @@ init_vals_cov2 <- function() {
 
 ## set of multi-covariate models
 cset2 <- c("NPGO","STI","Hrel")
+dat_jags$n_cov <- length(cset2)
 
 ## counter for model indexing
 cnt <- 13
