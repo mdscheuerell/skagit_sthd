@@ -1382,9 +1382,13 @@ for(i in 1:n_mods) {
   WAIC[i,"WAIC_esc"] <- waic(tmp_lp[,grep("esc",colnames(tmp_lp))])$waic
   if(i < 3) {
     cc_smry_1[i,] <- rep(NA,3)
-  } else {
-    cc_smry_1[i,] <- summary(mod_fits[[i]])$quantiles["gamma", c(1,3,5)]
-    # cc_smry_1[i,] <- mod_fits[[i]]$BUGSoutput$summary["gamma", c("2.5%","50%","97.5%")]
+  }
+  if(i > 3 & i <= 12) {
+      cc_smry_1[i,] <- summary(mod_fits[[i]])$quantiles["gamma", c("2.5%","50%","97.5%")]
+      # cc_smry_1[i,] <- mod_fits[[i]]$BUGSoutput$summary["gamma", c("2.5%","50%","97.5%")]
+  }
+  if(i > 12) {
+      cc_smry_1[i,] <- summary(mod_fits[[i]])$quantiles["gamma[3]", c("2.5%","50%","97.5%")]
   }
 }
 
@@ -1395,7 +1399,7 @@ colnames(dWAIC) <- c("dWAIC_both","dWAIC_age","dWAIC_esc")
 ## wt_LOO <- exp(-0.5*LOO)/sum(exp(-0.5*LOO))
 ## Table of model selection results
 tbl_WAIC <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
-                  covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2)),
+                  covar = c(c(NA,NA), rep(colnames(scl_cvrs),ea = 2), rep(cset2,ea = 2)),
                   round(WAIC,1),
                   dWAIC,
                   round(cc_smry_1, 2))
@@ -1434,7 +1438,7 @@ tbl_WAIC_both <- round(compare(x = WAIC_both), 2)
 rownames(tbl_WAIC_both) <- sub("model", "", rownames(tbl_WAIC_both))
 tbl_WAIC_both <- tbl_WAIC_both[order(as.numeric(rownames(tbl_WAIC_both))), ]
 tbl_WAIC_both <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
-                       covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2)),
+                       covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset2,ea = 2)),
                        as.data.frame(tbl_WAIC_both))
 tbl_WAIC_both[order(tbl_WAIC_both[,"waic"]), ]
 
@@ -1443,7 +1447,7 @@ tbl_WAIC_age <- round(compare(x = WAIC_age), 2)
 rownames(tbl_WAIC_age) <- sub("model", "", rownames(tbl_WAIC_age))
 tbl_WAIC_age <- tbl_WAIC_age[order(as.numeric(rownames(tbl_WAIC_age))), ]
 tbl_WAIC_age <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
-                      covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2)),
+                      covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset2,ea = 2)),
                       as.data.frame(tbl_WAIC_age))
 tbl_WAIC_age[order(tbl_WAIC_age[,"waic"]), ]
 
@@ -1452,7 +1456,7 @@ tbl_WAIC_esc <- round(compare(x = WAIC_esc), 2)
 rownames(tbl_WAIC_esc) <- sub("model", "", rownames(tbl_WAIC_esc))
 tbl_WAIC_esc <- tbl_WAIC_esc[order(as.numeric(rownames(tbl_WAIC_esc))), ]
 tbl_WAIC_esc <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
-                      covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2)),
+                      covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset2,ea = 2)),
                       as.data.frame(tbl_WAIC_esc))
 tbl_WAIC_esc[order(tbl_WAIC_esc[,"waic"]), ]
 ```
@@ -1495,9 +1499,13 @@ for(i in 1:n_mods) {
   LOO[i,"LOO_esc"] <- eloo$looic
   if(i < 3) {
     cc_smry_1[i,] <- rep(NA,3)
-  } else {
-    cc_smry_1[i,] <- summary(mod_fits[[i]])$quantiles["gamma", c(1,3,5)]
-    # cc_smry_1[i,] <- mod_fits[[i]]$BUGSoutput$summary["gamma", c("2.5%","50%","97.5%")]
+  }
+  if(i > 3 & i <= 12) {
+      cc_smry_1[i,] <- summary(mod_fits[[i]])$quantiles["gamma", c("2.5%","50%","97.5%")]
+      # cc_smry_1[i,] <- mod_fits[[i]]$BUGSoutput$summary["gamma", c("2.5%","50%","97.5%")]
+  }
+  if(i > 12) {
+      cc_smry_1[i,] <- summary(mod_fits[[i]])$quantiles["gamma[3]", c("2.5%","50%","97.5%")]
   }
 }
 
@@ -1508,7 +1516,7 @@ colnames(dLOO) <- c("dLOO_both","dLOO_age","dLOO_esc")
 ## wt_LOO <- exp(-0.5*LOO)/sum(exp(-0.5*LOO))
 ## Table of model selection results
 tbl_LOO <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
-                 covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2)),
+                 covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset2,ea = 2)),
                  round(LOO,1),
                  dLOO,
                  round(cc_smry_1, 2))
@@ -1547,7 +1555,7 @@ tbl_LOO_both <- round(compare(x = LOO_both), 2)
 rownames(tbl_LOO_both) <- sub("model", "", rownames(tbl_LOO_both))
 tbl_LOO_both <- tbl_LOO_both[order(as.numeric(rownames(tbl_LOO_both))), ]
 tbl_LOO_both <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
-                      covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2)),
+                      covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset2,ea = 2)),
                       as.data.frame(tbl_LOO_both))
 tbl_LOO_both[order(tbl_LOO_both[,"looic"]), ]
 
@@ -1556,7 +1564,7 @@ tbl_LOO_age <- round(compare(x = LOO_age), 2)
 rownames(tbl_LOO_age) <- sub("model", "", rownames(tbl_LOO_age))
 tbl_LOO_age <- tbl_LOO_age[order(as.numeric(rownames(tbl_LOO_age))), ]
 tbl_LOO_age <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
-                     covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2)),
+                     covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset2,ea = 2)),
                      as.data.frame(tbl_LOO_age))
 tbl_LOO_age[order(tbl_LOO_age[,"looic"]), ]
 
@@ -1565,7 +1573,7 @@ tbl_LOO_esc <- round(compare(x = LOO_esc), 2)
 rownames(tbl_LOO_esc) <- sub("model", "", rownames(tbl_LOO_esc))
 tbl_LOO_esc <- tbl_LOO_esc[order(as.numeric(rownames(tbl_LOO_esc))), ]
 tbl_LOO_esc <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
-                     covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2)),
+                     covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset2,ea = 2)),
                      as.data.frame(tbl_LOO_esc))
 tbl_LOO_esc[order(tbl_LOO_esc[,"looic"]), ]
 ```

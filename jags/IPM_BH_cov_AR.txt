@@ -15,7 +15,6 @@ model {
   beta <- 1/beta_inv;
   
   ## covariate effects
-  # for(i in 1:n_cov) { gamma[i] ~ dnorm(0,0.01) }
   gamma ~ dnorm(0,0.01);
 
   ## AR(1) coef for proc errors
@@ -60,7 +59,6 @@ model {
   ## LIKELIHOOD
   ##------------
   ## predicted recruits in BY t
-  # covar[1] <- inprod(gamma,scl_cvrs[1,]);
   covar[1] <- gamma*mod_cvrs[1];
   ln_BH_a[1] <- mu_BH_a + covar[1]; 
   E_ln_Rec[1] <- ln_BH_a[1] + ln_Sp[1] - log(1 + beta*Sp[1]) + phi*innov_1;
@@ -80,7 +78,6 @@ model {
   ## brood years 2:(n_yrs-age_min)
   for(t in 2:(n_yrs-age_min+n_fore)) {
     ## predicted recruits in BY t
-    # covar[t] <- inprod(gamma, scl_cvrs[t,]);
     covar[t] <- gamma*mod_cvrs[t];
     ln_BH_a[t] <- mu_BH_a + covar[t]; 
     E_ln_Rec[t] <- ln_BH_a[t] + ln_Sp[t] - log(1 + beta*Sp[t]) + phi*res_ln_Rec[t-1];
