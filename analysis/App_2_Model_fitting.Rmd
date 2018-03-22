@@ -1603,7 +1603,7 @@ Now we'll refit the best model and save all of the parameters/states of interest
 best_idx <- 13
 dat_jags$mod_cvrs <- scl_cvrs[,c("flow_wtr","flow_sum","NPGO")]
 ## params/states to return
-par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
+par_jags <- c("alpha","E_Rkr_a","ln_Rkr_a",
               "beta",
               "gamma",
               "Sp","Rec","tot_ln_Rec","ln_RS",
@@ -1631,5 +1631,5 @@ t(round(autocorr.diag(best_fit[,par_conv],
 These diagnostics look pretty good, so we'll save the output for this model.
 
 ```{r save_model}
-save(best_fit, file.path(datadir, ".rda"))
+save(best_fit, file = file.path(analdir, "best_fit.rda"))
 ```

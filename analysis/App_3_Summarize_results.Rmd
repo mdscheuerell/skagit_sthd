@@ -101,19 +101,19 @@ n_cov <- dim(dat_cvrs)[2]
 Here is a table of summary statistics for some of the model parameters.
 
 ```{r tbl_summary_stats}
-# params of interest
+## params of interest
 par_conv <- c("alpha","beta",paste0("gamma[",seq(3),"]"),
               "sigma_r","sigma_s","pi_tau",paste0("pi_eta[",seq(A-1),"]"))
-
-tbl_smry <- summary(best_fit)$quantiles[par_conv,
-                                        c("2.5%","50%","97.5%")]
+## summary table
+tbl_smry <- summary(best_fit)$quantiles[par_conv, c("2.5%","50%","97.5%")]
 round(tbl_smry, 2)
+```
 
-str(best_fit)
-names(best_fit[[1]])
+Now we need to convert the `mcmc.list` output into a more user-friendly form for plotting, etc.
 
-mm <- as.matrix(best_fit)
-colnames(mm)
+```{r}
+## results
+mod_res <- as.matrix(best_fit)
 ```
 
 ### Spawner-recruit relationship
@@ -126,15 +126,15 @@ CI_vec <- c(0.025,0.5,0.975)
 offSet <- 0.06
 
 ## posterior of spawners
-sDat <- apply(mod_fit$BUGSoutput$sims.list$Sp,2,quantile,CI_vec)
+sDat <- mod_res[,grep("Sp[", mod_res)]
+sDat <- apply(,2,quantile,CI_vec)
 sDat <- sDat[,1:(n_yrs-age_min+n_fore)]
 ## posterior of recruits
-rDat <- exp(apply(mod_fit$BUGSoutput$sims.list$tot_ln_Rec,2,quantile,CI_vec))
+rDat <- mod_res[,grep("tot_ln_Rec", mod_res)]
+rDat <- exp(apply(rDat,2,quantile,CI_vec))
 ## median values for a & b
-aa <- apply(mod_fit$BUGSoutput$sims.list$ln_BH_a,2,median)
-# bb <- apply(mod_fit$BUGSoutput$sims.list$beta,2,median)
-# aa <- median(mod_fit$BUGSoutput$sims.list$alpha)
-bb <- median(mod_fit$BUGSoutput$sims.list$beta)
+aa <- apply(mod_res[,"ln_Rkr_a"], 2, median)
+bb <- median(mod_res[,"beta"])
 
 ## empty plot space for spawner-recruit relationships
 dd <- 3000
