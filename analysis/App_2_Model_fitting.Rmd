@@ -1212,7 +1212,7 @@ init_vals_AR <- function() {
 ## params/states to return
 par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
               "beta",
-               "Sp","Rec","tot_ln_Rec","ln_RS",
+              "Sp","Rec","tot_ln_Rec","ln_RS",
               "pi_eta","pi_tau",
               "sigma_r","sigma_s","res_ln_Rec",
               "lp_age","lp_esc")
@@ -1240,7 +1240,7 @@ t(round(autocorr.diag(mod_fits[[1]][,par_conv],
 ## params/states to return
 par_jags <- c("alpha","E_BH_a","mu_BH_a",
               "beta",
-               "Sp","Rec","tot_ln_Rec","ln_RS",
+              "Sp","Rec","tot_ln_Rec","ln_RS",
               "pi_eta","pi_tau",
               "sigma_r","sigma_s","res_ln_Rec",
               "lp_age","lp_esc")
@@ -1544,7 +1544,7 @@ for(i in 1:n_mods) {
     tmp_min <- min(tmp_lp, na.rm = TRUE)
     tmp_lp[is.na(tmp_lp)] <- tmp_min * 1.05
   }
-  ## calculate WAIC
+  ## calculate LOOIC
   LOO_both[[i]] <- loo(tmp_lp)
   LOO_age[[i]] <- loo(tmp_lp[,grep("age",colnames(tmp_lp))])
   LOO_esc[[i]] <- loo(tmp_lp[,grep("esc",colnames(tmp_lp))])
@@ -1592,5 +1592,38 @@ pp <- ggplot(tidy_lp, aes(x=time, y=lp)) +
 ## violin plot
 p1 <- pp + geom_violin()
 p1
+```
+
+# Refit best model
+
+Now we'll refit the best model and save all of the parameters/states of interest. In this case, we'll select the model with a Ricker process model and the following 3 covariates: summer flow, winter flow, and NPGO.
+
+```{r refit_best_mod, cache = TRUE}
+best_idx <- 13
+dat_jags$mod_cvrs <- scl_cvrs[,c("flow_wtr","flow_sum","NPGO")]
+## params/states to return
+par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
+              "beta",
+              "gamma",
+              "Sp","Rec","tot_ln_Rec","ln_RS",
+              "pi_eta","pi_tau",
+              "sigma_r","sigma_s","res_ln_Rec")
+best_fit <- fit_jags("IPM_RK_cov2_AR.txt", dat_jags, par_jags, init_vals_cov2, mcmc_ctrl)
+```
+
+## Model diagnostics
+
+Here is a histogram of the Gelman & Rubin statistics $(R_{hat})$ for the estimated parameters. Recall that we set an upper threshold of `r Rhat_thresh`, so values larger than that deserve some additional inspection.
+
+```{r model_diagnostics}
+# params of interest
+par_conv <- c("alpha","beta",paste0("gamma[",seq(3),"]"),
+              "sigma_r","sigma_s","pi_tau",paste0("pi_eta[",seq(A-1),"]"))
+## Gelman-Rubin
+gelman.diag(best_fit[,par_conv])
+## Autocorrelation
+t(round(autocorr.diag(best_fit[,par_conv],
+                      lags = seq(mcmc_ctrl$thin, 4*mcmc_ctrl$thin, mcmc_ctrl$thin),
+                      relative=FALSE), 2))
 ```
 
