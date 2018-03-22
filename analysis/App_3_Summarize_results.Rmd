@@ -1,0 +1,210 @@
+---
+title: Appendix S3. Summary of model results.
+output:
+  html_document:
+    fig_caption: yes
+    theme: cerulean
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+---
+
+***
+
+This is version `r paste0('0.',format(Sys.time(), '%y.%m.%d'))`.
+
+***
+
+```{r set_options, echo = FALSE, message = FALSE}
+options(width = 100)
+knitr::opts_chunk$set(message = FALSE)
+```
+
+# Requirements
+
+All analyses require the [R software](https://cran.r-project.org/) (v3.4.3) for data retrieval, data processing, and summarizing model results.
+
+We also need a few packages that are not included with the base installation of R, so we begin by installing them (if necessary) and then loading them.
+
+```{r load_pkgs, message = FALSE, warning = FALSE}
+if(!require("here")) {
+  install.packages("here")
+  library("here")
+}
+if(!require("readr")) {
+  install.packages("readr")
+  library("readr")
+}
+if(!require("coda")) {
+  install.packages("coda")
+  library("coda")
+}
+## set directory locations
+datadir <- here("data")
+analdir <- here("analysis")
+```
+
+We also need a couple of helper functions.
+
+```{r define_funcs}
+## better round
+Re2prec <- function(x, map = "round", prec = 1) {
+  ## 'map' can be "round", "floor", or "ceiling"
+  ## 'prec' is nearest value (eg, 0.1 means to nearest tenth; 1 gives normal behavior)
+  if(prec<=0) { stop("\"prec\" cannot be less than or equal to 0") }
+  do.call(map,list(x/prec))*prec
+}
+```
+
+```{r get_user_inputs, echo=FALSE}
+## first & last years of fish data
+yr_frst <- 1978
+yr_last <- 2017
+## years of data
+dat_yrs <- seq(yr_frst,yr_last)
+## number of years of data
+n_yrs <- length(dat_yrs)
+
+## min & max adult age classes
+age_min <- 3
+age_max <- 8
+## num of age classes
+A <- age_max - age_min + 1
+
+## number of years for run forecasts
+n_fore <- 0
+```
+
+# Load the model fits
+
+Here we load in the first three data files and do some simple calculations and manipulations. First the spawner data:
+
+```{r load_mod_fits}
+load(file.path(analdir, "best_fit.rda"))
+```
+
+```{r load_covariates}
+## covariate(s)
+dat_cvrs <- read_csv(file.path(datadir, "skagit_sthd_covars.csv"))
+## drop year col
+dat_cvrs <- dat_cvrs[,-1] 
+## total number of covariates
+n_cov <- dim(dat_cvrs)[2] 
+```
+
+
+## Main results
+
+Here is a table of summary statistics for some of the model parameters.
+
+```{r tbl_summary_stats}
+# params of interest
+par_conv <- c("alpha","beta",paste0("gamma[",seq(3),"]"),
+              "sigma_r","sigma_s","pi_tau",paste0("pi_eta[",seq(A-1),"]"))
+
+tbl_smry <- summary(best_fit)$quantiles[par_conv,
+                                        c("2.5%","50%","97.5%")]
+round(tbl_smry, 2)
+
+str(best_fit)
+names(best_fit[[1]])
+
+mm <- as.matrix(best_fit)
+colnames(mm)
+```
+
+### Spawner-recruit relationship
+
+Here is the relationship between spawner and subsequent recruits (a), assuming mean values for all covariates. Gray lines show the median relationship for each of the `r n_yrs` years based on $a_t$. Note that for plotting purposes only in (b) and (c), the density in the largest bin for each parameter contains counts for all values greater or equal to that. Vertical arrows under the x-axes in (b) and (c) indicate the 2.5^th^, 50^th^, and 97.5^th^ percentiles.
+
+```{r plot_S_R, fig.width = 8, fig.height = 5, fig.pos = "placeHere", eval=FALSE}
+layout(matrix(c(1,1,2,3),2,2),c(3,2),c(1,1))
+CI_vec <- c(0.025,0.5,0.975)
+offSet <- 0.06
+
+## posterior of spawners
+sDat <- apply(mod_fit$BUGSoutput$sims.list$Sp,2,quantile,CI_vec)
+sDat <- sDat[,1:(n_yrs-age_min+n_fore)]
+## posterior of recruits
+rDat <- exp(apply(mod_fit$BUGSoutput$sims.list$tot_ln_Rec,2,quantile,CI_vec))
+## median values for a & b
+aa <- apply(mod_fit$BUGSoutput$sims.list$ln_BH_a,2,median)
+# bb <- apply(mod_fit$BUGSoutput$sims.list$beta,2,median)
+# aa <- median(mod_fit$BUGSoutput$sims.list$alpha)
+bb <- median(mod_fit$BUGSoutput$sims.list$beta)
+
+## empty plot space for spawner-recruit relationships
+dd <- 3000
+yM <- Re2prec(max(rDat),"ceiling",dd)
+#yM <- 30000
+xM <- Re2prec(max(sDat),"ceiling",dd)
+par(mai = c(0.8,0.8,0.1,0.1), omi = c(0,0,0,0))
+plot(sDat[2,],rDat[2,], xlim = c(0,xM), ylim = c(0,yM), pch = 16, col = "blue3", type = "n",
+     xaxs = "i", yaxs = "i", ylab = "Recruits (1000s)", xlab = "Spawners (1000s)", cex.lab = 1.2,
+     xaxt = "n", yaxt = "n")
+axis(1, at = seq(0,xM,dd*2), labels = seq(0,xM,dd*2)/1000)
+axis(2, at = seq(0,yM,dd*2), labels = seq(0,yM,dd*2)/1000)
+for(i in 1:length(aa)) { lines(exp(aa[i])*seq(0,xM)/(1+bb*seq(0,xM)), col = "darkgray") }
+#for(i in 1:length(aa)) { lines(aa[i]*seq(0,xM)/(1+bb*seq(0,xM)), col = "darkgray") }
+# lines(aa*seq(0,xM)/(1+bb*seq(0,xM)), col = "darkgray")
+abline(a = 0,b = 1,lty = "dashed")
+
+## add S-R estimates and medians
+nCB <- n_yrs-age_max
+points(sDat[2,1:nCB],rDat[2,1:nCB], xlim = c(0,xM), ylim = c(0,yM), pch = 16, col = "blue3")
+segments(sDat[2,1:nCB],rDat[1,1:nCB],sDat[2,1:nCB],rDat[3,1:nCB], col = "blue3")
+segments(sDat[1,1:nCB],rDat[2,1:nCB],sDat[3,1:nCB],rDat[2,1:nCB], col = "blue3")
+nTB <- dim(sDat)[2]
+clr <- rgb(100, 0, 200, alpha = seq(200,100,length.out = age_max-age_min+n_fore), maxColorValue = 255)
+segments(sDat[2,(nCB+1):nTB],rDat[1,(nCB+1):nTB],sDat[2,(nCB+1):nTB],rDat[3,(nCB+1):nTB], col = clr)
+segments(sDat[1,(nCB+1):nTB],rDat[2,(nCB+1):nTB],sDat[3,(nCB+1):nTB],rDat[2,(nCB+1):nTB], col = clr)
+points(sDat[2,(nCB+1):nTB],rDat[2,(nCB+1):nTB],
+       xlim = c(0,xM), ylim = c(0,yM), pch = 16, col = clr)
+text(x = par()$usr[1]+par()$pin[2]/par()$pin[1]*offSet*diff(par()$usr[1:2]),
+	 y = par()$usr[4]-offSet*diff(par()$usr[3:4]),"(a)")
+
+## posterior for alpha
+clr <- rgb(0, 0, 255, alpha = 50, maxColorValue = 255)
+a_thresh <- 99
+par(mai = c(0.8,0.4,0.3,0.1))
+## B-H alpha
+R_alpha_est <- mod_fit$BUGSoutput$sims.list$alpha
+alphaCI <- quantile(R_alpha_est,c(0.025,0.5,0.975))
+R_alpha_est[R_alpha_est>a_thresh] <- a_thresh
+hist(R_alpha_est,freq = FALSE,xlab = "",main = "",breaks = seq(0,a_thresh+1,2),
+col = clr, border = "blue3", ylab = "", cex.lab = 1.2, yaxt = "n")
+aHt <- (par()$usr[4]-par()$usr[3])/12
+arrows(alphaCI,par()$usr[3],alphaCI,par()$usr[3]-aHt,
+code = 1,length = 0.05,xpd = NA,col = "blue3",lwd = 1.5)
+mtext(expression(Instrinsic~productivity~(alpha)), 1, line = 3, cex = 1)
+text(x = par()$usr[1]+par()$pin[2]/par()$pin[1]*offSet*diff(par()$usr[1:2]),
+y = par()$usr[4]-offSet*diff(par()$usr[3:4]),"(b)")
+
+## posterior for K
+par(mai = c(0.8,0.4,0.3,0.1))
+aa <- matrix(mod_fit$BUGSoutput$sims.array[,,"alpha"],ncol = 1)
+bb <- matrix(mod_fit$BUGSoutput$sims.array[,,"beta"],ncol = 1)
+R_b_est <- (aa-1)/bb
+R_b_est <- R_b_est[R_b_est > 0]
+R_b_CI <- quantile(R_b_est,c(0.025,0.5,0.975))
+R_b_est[R_b_est>12e3] <- 12e3
+brks <- seq(Re2prec(min(R_b_est),"floor",1000),
+Re2prec(max(R_b_est),"ceiling",1000),
+length.out = length(seq(0,a_thresh,2)))
+hist(R_b_est, freq = FALSE, breaks = brks, col = clr, border = "blue3",
+xlab = "", xaxt = "n", yaxt = "n",
+main = "", ylab = "", cex.lab = 1.2)
+axis(1, at = seq(Re2prec(min(R_b_est),"floor",1000),
+Re2prec(max(R_b_est),"ceiling",1000),
+2000))
+aHt <- (par()$usr[4]-par()$usr[3])/12
+arrows(R_b_CI,par()$usr[3],R_b_CI,par()$usr[3]-aHt,
+code = 1,length = 0.05,xpd = NA,col = "blue3",lwd = 1.5)
+mtext(expression(Carrying~capacity~(italic(K))), 1, line = 3, cex = 1)
+text(x = par()$usr[1]+par()$pin[2]/par()$pin[1]*offSet*diff(par()$usr[1:2]),
+y = par()$usr[4]-offSet*diff(par()$usr[3:4]),"(c)")
+```
+
