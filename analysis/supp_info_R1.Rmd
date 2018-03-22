@@ -1326,7 +1326,7 @@ Here is a table of summary statistics for some of the model parameters.
 
 ```{r tbl_summary_stats}
 tbl_smry <- mod_fit$BUGSoutput$summary[c("alpha","E_BH_a","beta","gamma"),
-c("mean","sd","2.5%","50%","97.5%")]
+                                       c("mean","sd","2.5%","50%","97.5%")]
 #rownames(tbl_smry)[seq(n_cov)+2] <- colnames(dat_cvrs)                                 
 print(tbl_smry, digits = 3, quote = FALSE, justify = "right")
 ```
