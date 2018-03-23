@@ -132,7 +132,7 @@ mod_res <- do.call("rbind", best_fit)
 
 Here is the relationship between spawner and subsequent recruits (a), assuming mean values for all covariates. Gray lines show the median relationship for each of the `r n_yrs` years based on $a_t$. Note that for plotting purposes only in (b) and (c), the density in the largest bin for each parameter contains counts for all values greater or equal to that. Vertical arrows under the x-axes in (b) and (c) indicate the 2.5^th^, 50^th^, and 97.5^th^ percentiles.
 
-```{r plot_S_R, fig.width = 8, fig.height = 5, fig.pos = "placeHere", eval=TRUE}
+```{r plot_S_R, fig.width = 8, fig.height = 5, fig.pos = "placeHere", cache=TRUE}
 layout(matrix(c(1,1,2,3),2,2),c(3,2),c(1,1))
 CI_vec <- c(0.025,0.5,0.975)
 offSet <- 0.06
