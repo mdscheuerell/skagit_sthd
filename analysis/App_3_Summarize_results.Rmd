@@ -80,7 +80,7 @@ n_fore <- 0
 
 # Load the model fits
 
-Here we load in the first three data files and do some simple calculations and manipulations. First the spawner data:
+Here we load in the model fits, covariates, and harvest data.
 
 ```{r load_mod_fits}
 load(file.path(analdir, "best_fit.rda"))
@@ -93,6 +93,19 @@ dat_cvrs <- read_csv(file.path(datadir, "skagit_sthd_covars.csv"))
 dat_cvrs <- dat_cvrs[,c("year","flow_wtr","flow_sum","Hrel")] 
 ```
 
+```{r get_escapement_data}
+## escapement
+dat_esc <- read_csv(file.path(datadir, "skagit_sthd_esc.csv"))
+## log of escapement
+ln_dat_esc <- c(log(dat_esc$escapement),rep(NA,n_fore))
+```
+
+```{r get_harvest}
+## harvest
+dat_harv <- read_csv(file.path(datadir, "skagit_sthd_catch.csv"))
+## drop year col & first age_max rows
+dat_harv <- c(dat_harv$catch, rep(0,n_fore))
+```
 
 ## Main results
 
@@ -255,7 +268,42 @@ for(i in 1:n_cov) {
 }
 ```
 
-```{r eval=FALSE}
+### Total population size
 
+Here is our estimate of the total run size (i.e., catch + escapement) over time, which includes a forecast for `r yr_last+n_fore`. The black points are the data, the blue line is the median posterior estimate, and the shaded region is the 95% credible interval. Note that the y-axis is on a log scale.
+
+```{r plot_run_size, fig.width = 6, fig.height = 4.5, fig.pos = "placeHere"}
+pDat <- mod_res[,grep("Sp", colnames(mod_res))]
+pDat <- apply(pDat,2,quantile,CI_vec)
+pDat <- pDat + matrix(dat_harv, length(CI_vec), n_yrs+n_fore, byrow = TRUE)
+t_idx_f <- seq(yr_frst, length.out = n_yrs+n_fore)
+ypMin <- min(pDat)
+ypMax <- max(pDat)
+par(mai = c(0.8,0.8,0.1,0.1), omi = c(0.5,0.2,0.1,0.2))
+plot(t_idx_f, pDat[3,], ylim = c(ypMin,ypMax), type = "n", log = "y", xaxt = "n", yaxt = "n",
+xlab = "Year", ylab = "Catch + escapement", main = "", cex.lab = 1.2)
+polygon(c(t_idx_f,rev(t_idx_f)),c(pDat[3,],rev(pDat[1,])), col = clr, border = NA)
+lines(t_idx_f, pDat[2,], col = "blue3", lwd = 2)
+points(t_idx_f, exp(ln_dat_esc)+dat_harv, pch = 16, cex = 1)
+axis(1,at = seq(1980,2015,5))
+axis(2,at = c(4000,8000,16000))
 ```
 
+### Innovations
+
+Here is the time series of the so-called "innovations", which are the residuals from the process model. They give some indication of population productivity after accounting for the effects of density dependence.
+
+```{r plot_innovations, fig.width = 6, fig.height = 4, fig.pos = "placeHere"}
+t_idx_a <- seq(yr_frst, length.out = n_yrs-age_min+n_fore)
+# pDat <- apply(mod_fit$BUGSoutput$sims.list$res_ln_Rec,2,quantile,CI_vec)
+pDat <- mod_res[,grep("res_ln_Rec", colnames(mod_res))]
+pDat <- apply(pDat, 2, quantile, CI_vec)
+ypMin <- min(pDat)
+ypMax <- max(pDat)
+par(mai = c(0.8,0.8,0.1,0.1), omi = c(0,0.2,0.1,0.2))
+plot(t_idx_a,pDat[3,], ylim = c(ypMin,ypMax), type = "n", #log = "y",
+xlab = "Brood year", ylab = "Innovations", main = "", cex.lab = 1.2)
+abline(h = 0, lty = "dashed")
+polygon(c(t_idx_a,rev(t_idx_a)),c(pDat[3,],rev(pDat[1,])), col = clr, border = NA)
+lines(t_idx_a, pDat[2,], col = "blue3", lwd = 2)
+```

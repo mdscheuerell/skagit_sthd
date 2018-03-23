@@ -46,11 +46,13 @@ model {
   ## precision across all popns
   Rec_tau <- pow(Rec_sig,-2);
   ## multipliers for unobservable total runs
+	ttl_run_mu ~ dunif(1,5);
+	ttl_run_tau ~ dunif(1,20);
 
   ## get total cal yr returns for first age_min yrs
   for(i in 1:(age_min+age_skip)) {
-    tot_Run_early[i] ~ dnorm(0,1e-5) I(0, 5e4);
-    tot_Run[i] <- tot_Run_early[i];
+		ln_tot_Run[i] ~ dnorm(ttl_run_mu*Rec_mu,Rec_tau/ttl_run_tau);
+		tot_Run[i] <- exp(ln_tot_Run[i]);
   }
   
   ##------------
