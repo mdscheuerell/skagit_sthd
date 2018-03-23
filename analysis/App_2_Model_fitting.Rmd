@@ -261,11 +261,13 @@ model {
   ## precision across all popns
   Rec_tau <- pow(Rec_sig,-2);
   ## multipliers for unobservable total runs
+	ttl_run_mu ~ dunif(1,5);
+	ttl_run_tau ~ dunif(1,20);
 
   ## get total cal yr returns for first age_min yrs
   for(i in 1:(age_min+age_skip)) {
-    tot_Run_early[i] ~ dnorm(0,1e-5) I(0, 5e4);
-    tot_Run[i] <- tot_Run_early[i];
+		ln_tot_Run[i] ~ dnorm(ttl_run_mu*Rec_mu,Rec_tau/ttl_run_tau);
+		tot_Run[i] <- exp(ln_tot_Run[i]);
   }
   
   ##------------
@@ -416,11 +418,13 @@ model {
   ## precision across all popns
   Rec_tau <- pow(Rec_sig,-2);
   ## multipliers for unobservable total runs
+	ttl_run_mu ~ dunif(1,5);
+	ttl_run_tau ~ dunif(1,20);
 
   ## get total cal yr returns for first age_min yrs
   for(i in 1:(age_min+age_skip)) {
-    tot_Run_early[i] ~ dnorm(0,1e-5) I(0, 5e4);
-    tot_Run[i] <- tot_Run_early[i];
+		ln_tot_Run[i] ~ dnorm(ttl_run_mu*Rec_mu,Rec_tau/ttl_run_tau);
+		tot_Run[i] <- exp(ln_tot_Run[i]);
   }
   
   ##------------
@@ -574,11 +578,13 @@ model {
   ## precision across all popns
   Rec_tau <- pow(Rec_sig,-2);
   ## multipliers for unobservable total runs
+	ttl_run_mu ~ dunif(1,5);
+	ttl_run_tau ~ dunif(1,20);
 
   ## get total cal yr returns for first age_min yrs
   for(i in 1:(age_min+age_skip)) {
-    tot_Run_early[i] ~ dnorm(0,1e-5) I(0, 5e4);
-    tot_Run[i] <- tot_Run_early[i];
+		ln_tot_Run[i] ~ dnorm(ttl_run_mu*Rec_mu,Rec_tau/ttl_run_tau);
+		tot_Run[i] <- exp(ln_tot_Run[i]);
   }
   
   ##------------
@@ -717,11 +723,14 @@ model {
   Rec_sig ~ dunif(0,100);
   ## precision across all popns
   Rec_tau <- pow(Rec_sig,-2);
+  ## multipliers for unobservable total runs
+	ttl_run_mu ~ dunif(1,5);
+	ttl_run_tau ~ dunif(1,20);
 
   ## get total cal yr returns for first age_min yrs
   for(i in 1:(age_min+age_skip)) {
-    tot_Run_early[i] ~ dnorm(0,1e-5) I(0, 5e4);
-    tot_Run[i] <- tot_Run_early[i];
+		ln_tot_Run[i] ~ dnorm(ttl_run_mu*Rec_mu,Rec_tau/ttl_run_tau);
+		tot_Run[i] <- exp(ln_tot_Run[i]);
   }
   
   ## maturity schedule
@@ -871,11 +880,14 @@ model {
   Rec_sig ~ dunif(0,100);
   ## precision across all popns
   Rec_tau <- pow(Rec_sig,-2);
+  ## multipliers for unobservable total runs
+	ttl_run_mu ~ dunif(1,5);
+	ttl_run_tau ~ dunif(1,20);
 
   ## get total cal yr returns for first age_min yrs
   for(i in 1:(age_min+age_skip)) {
-    tot_Run_early[i] ~ dnorm(0,1e-5) I(0, 5e4);
-    tot_Run[i] <- tot_Run_early[i];
+		ln_tot_Run[i] ~ dnorm(ttl_run_mu*Rec_mu,Rec_tau/ttl_run_tau);
+		tot_Run[i] <- exp(ln_tot_Run[i]);
   }
   
   ## maturity schedule
@@ -1027,11 +1039,14 @@ model {
   Rec_sig ~ dunif(0,100);
   ## precision across all popns
   Rec_tau <- pow(Rec_sig,-2);
+  ## multipliers for unobservable total runs
+	ttl_run_mu ~ dunif(1,5);
+	ttl_run_tau ~ dunif(1,20);
 
   ## get total cal yr returns for first age_min yrs
   for(i in 1:(age_min+age_skip)) {
-    tot_Run_early[i] ~ dnorm(0,1e-5) I(0, 5e4);
-    tot_Run[i] <- tot_Run_early[i];
+		ln_tot_Run[i] ~ dnorm(ttl_run_mu*Rec_mu,Rec_tau/ttl_run_tau);
+		tot_Run[i] <- exp(ln_tot_Run[i]);
   }
   
   ## maturity schedule
@@ -1201,7 +1216,6 @@ init_vals_AR <- function() {
 	     Rec_mu = log(1000),
 	     Rec_sig = 0.1,
 	     tot_ln_Rec = rep(log(1000), n_yrs - age_min + n_fore),
-	     tot_Run_early = rep(8000, age_min+age_skip),
 	     innov_1 = 0,
 	     phi = 0.5)
 }
@@ -1277,7 +1291,6 @@ init_vals_cov <- function() {
 	     Rec_mu = log(1000),
 	     Rec_sig = 0.1,
 	     tot_ln_Rec = rep(log(1000), n_yrs - age_min + n_fore),
-	     tot_Run_early = rep(8000, age_min+age_skip),
 	     innov_1 = 0,
 	     phi = 0.5)
 }
@@ -1317,7 +1330,6 @@ init_vals_cov2 <- function() {
 	     Rec_mu = log(1000),
 	     Rec_sig = 0.1,
 	     tot_ln_Rec = rep(log(1000), n_yrs - age_min + n_fore),
-	     tot_Run_early = rep(8000, age_min+age_skip),
 	     innov_1 = 0,
 	     phi = 0.5)
 }
@@ -1600,16 +1612,16 @@ p1
 Now we'll refit the best model and save all of the parameters/states of interest. In this case, we'll select the model with a Ricker process model and the following 3 covariates: summer flow, winter flow, and NPGO.
 
 ```{r refit_best_mod, cache = TRUE}
-best_idx <- 13
-dat_jags$mod_cvrs <- scl_cvrs[,c("flow_wtr","flow_sum","NPGO")]
+best_idx <- 18
+dat_jags$mod_cvrs <- scl_cvrs[,c("flow_wtr","flow_sum","Hrel")]
 ## params/states to return
-par_jags <- c("alpha","E_Rkr_a","ln_Rkr_a",
+par_jags <- c("alpha","E_BH_a","ln_BH_a",
               "beta",
               "gamma",
               "Sp","Rec","tot_ln_Rec","ln_RS",
               "pi_eta","pi_tau",
               "sigma_r","sigma_s","res_ln_Rec")
-best_fit <- fit_jags("IPM_RK_cov2_AR.txt", dat_jags, par_jags, init_vals_cov2, mcmc_ctrl)
+best_fit <- fit_jags("IPM_BH_cov2_AR.txt", dat_jags, par_jags, init_vals_cov2, mcmc_ctrl)
 ```
 
 ## Model diagnostics
