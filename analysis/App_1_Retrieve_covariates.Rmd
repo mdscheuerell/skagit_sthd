@@ -39,15 +39,6 @@ if(!require("here")) {
 datadir <- here("data")
 ```
 
-We also need this helper function.
-
-```{r define_funcs}
-## return spring transition index
-get_STI <- function(x, day_max = 200) {
-	return(min(which(x==min(x[1:day_max]))))
-}
-```
-
 # User inputs
 We begin by supplying values for the following parameters, which we use for trimming and lagging the covariates to the appropriate years.
 
@@ -202,36 +193,6 @@ dat_NPGO <- data.frame(year = seq(yr_frst,yr_last-age_min+n_fore), NPGO = dat_NP
 dat_NPGO[,"NPGO"] <- round(dat_NPGO[,"NPGO"], 2)
 ```
 
-## Spring Transition Index
-
-We calculated the spring transition index (STI) from the daily coastal upwelling index (CUI) provided by NOAA's Pacific Fisheries Environmental Laboratory  ([PFEL](https://www.pfeg.noaa.gov/)); you can find more information [here](https://www.pfeg.noaa.gov/products/PFEL/modeled/indices/PFELindices.html). We begin by downloading the raw CUI data and viewing the metadata.
-
-```{r get_CUI_metadata}
-## URL for CUI data
-url_CUI <- "https://www.pfeg.noaa.gov/products/PFELData/upwell/daily/p06dayac.all"
-## raw CUI data from PFEL
-CUI_raw <- read_lines(url_CUI)
-## line with data headers
-hdr_CUI <- which(lapply(CUI_raw,grep,pattern="YYYYMMDD")==1, arr.ind = TRUE)
-## print CUI metadata
-print(CUI_raw[seq(hdr_CUI-1)],quote = FALSE)
-```
-
-Now we can retrieve only the data themselves.
-
-```{r get_CUI}
-## get daily CUI data
-dat_CUI <- read_table(url_CUI, col_names = TRUE, skip = hdr_CUI-1)
-## extract year from date
-dat_CUI$yr <- gsub("[0-9]{4}$","",dat_CUI$YYYYMMDD)
-## select only years of interest
-cui <- dat_CUI[dat_CUI$yr >= yr_frst+marine_lag & dat_CUI$yr <= yr_last-age_min+n_fore+marine_lag,]
-## calculate cumulative upwelling by year
-cum_CUI <- tapply(cui$Index, cui$yr, cumsum)
-## calc STI for each year
-dat_STI <- data.frame(year = seq(yr_frst,yr_last-age_min+n_fore), STI = sapply(cum_CUI,get_STI))
-```
-
 ## Hatchery releases
 
 The numbers of hatchery fish released each year are provided in `/data/skagit_sthd_hrel.csv`. They have already been lagged 2 years (i.e., brood year + 2) to account for the potential competitive interactions during their juvenile life stage.
@@ -239,7 +200,7 @@ The numbers of hatchery fish released each year are provided in `/data/skagit_st
 ```{r get_hatchery_releases}
 ## get releases
 dat_hrel <- read_csv(file.path(datadir, "skagit_sthd_hrel.csv"))
-dat_hrel <- subset(dat_hrel, dat_hrel$year <= max(dat_STI$year))
+dat_hrel <- subset(dat_hrel, dat_hrel$year <= max(dat_NPGO$year))
 ```
 
 # Combine covariates
@@ -252,7 +213,6 @@ dat_cvrs <- Reduce(function(...) merge(..., all = TRUE),
                    list(dat_flow_wtr,
                         dat_flow_sum,
                         dat_NPGO,
-                        dat_STI,
                         dat_hrel))
 ## peak at covariates
 head(dat_cvrs)
