@@ -197,17 +197,7 @@ n_cov <- dim(scl_cvrs)[2]
 
 # Specifying models in JAGS
 
-Now we can specify the various models in JAGS. We fit a total of `r 2*(1+n_cov+3)` different models based on the 2 different spawner-recruit models and 0-3 covariates in any given model. Specifically, we fit the following models for each of the spawner-recruit models:
-
-1. no covariates
-2. summer flow
-3. winter flow
-4. NPGO
-5. STI
-6. hatchery releases
-7. summer flow + winter flow + NPGO
-8. summer flow + winter flow + STI
-9. summer flow + winter flow + hatchery releases
+Now we can specify the various models in JAGS. We fit a total of 4 different models, which we outline below, based on the 2 different process models with and without and covariates.
 
 ## Ricker with AR(1)
 
@@ -1062,7 +1052,7 @@ colnames(dLOO) <- c("dLOO_both","dLOO_age","dLOO_esc")
 ## wt_LOO <- exp(-0.5*LOO)/sum(exp(-0.5*LOO))
 ## Table of model selection results
 tbl_LOO <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
-                 covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset,ea = 2)),
+                 covar = rep(c("No","Yes"),ea=2),
                  round(LOO,1),
                  dLOO)
 tbl_LOO
@@ -1099,8 +1089,8 @@ for(i in 1:n_mods) {
 tbl_LOO_both <- round(compare(x = LOO_both), 2)
 rownames(tbl_LOO_both) <- sub("model", "", rownames(tbl_LOO_both))
 tbl_LOO_both <- tbl_LOO_both[order(as.numeric(rownames(tbl_LOO_both))), ]
-tbl_LOO_both <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
-                      covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset,ea = 2)),
+tbl_LOO_both <- cbind(model = rep(c("Ricker","B-H"),2),
+                      covar = rep(c("No","Yes"),ea=2),
                       as.data.frame(tbl_LOO_both))
 tbl_LOO_both[order(tbl_LOO_both[,"looic"]), ]
 
@@ -1108,8 +1098,8 @@ tbl_LOO_both[order(tbl_LOO_both[,"looic"]), ]
 tbl_LOO_age <- round(compare(x = LOO_age), 2)
 rownames(tbl_LOO_age) <- sub("model", "", rownames(tbl_LOO_age))
 tbl_LOO_age <- tbl_LOO_age[order(as.numeric(rownames(tbl_LOO_age))), ]
-tbl_LOO_age <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
-                     covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset,ea = 2)),
+tbl_LOO_age <- cbind(model = rep(c("Ricker","B-H"),2),
+                     covar = rep(c("No","Yes"),ea=2),
                      as.data.frame(tbl_LOO_age))
 tbl_LOO_age[order(tbl_LOO_age[,"looic"]), ]
 
@@ -1117,8 +1107,8 @@ tbl_LOO_age[order(tbl_LOO_age[,"looic"]), ]
 tbl_LOO_esc <- round(compare(x = LOO_esc), 2)
 rownames(tbl_LOO_esc) <- sub("model", "", rownames(tbl_LOO_esc))
 tbl_LOO_esc <- tbl_LOO_esc[order(as.numeric(rownames(tbl_LOO_esc))), ]
-tbl_LOO_esc <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
-                     covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset,ea = 2)),
+tbl_LOO_esc <- cbind(model = rep(c("Ricker","B-H"),2),
+                     covar = rep(c("No","Yes"),ea=2),
                      as.data.frame(tbl_LOO_esc))
 tbl_LOO_esc[order(tbl_LOO_esc[,"looic"]), ]
 ```
