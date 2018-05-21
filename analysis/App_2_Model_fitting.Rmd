@@ -968,7 +968,7 @@ init_vals_cov <- function() {
 }
 
 ## set of multi-covariate models
-cset <- c("flow_wtr", "flow_sum", "Hrel", "NPGO")
+cset <- colnames(scl_cvrs)
 dat_jags$n_cov <- length(cset)
 dat_jags$mod_cvrs <- scl_cvrs[, cset]
 
