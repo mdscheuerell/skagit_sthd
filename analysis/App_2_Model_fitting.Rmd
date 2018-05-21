@@ -364,168 +364,9 @@ model {
 ", file=file.path(jagsdir, "IPM_RK_AR.txt"))
 ```
 
-## Ricker with 1 covar & AR(1)
+## Ricker with all covars & AR(1)
 
 ```{r JAGS_RK_cov_AR}
-cat("
-
-model {
-  
-  ##--------
-  ## PRIORS
-  ##--------
-  ## alpha = exp(a) = intrinsic productivity
-  alpha ~ dnorm(0,0.01) T(0,);
-  mu_Rkr_a <- log(alpha);
-  E_Rkr_a <- mu_Rkr_a + sigma_r/(2 - 2*phi^2);
-  
-  ## strength of dens depend
-  beta_inv ~ dnorm(0, 1e-9) T(0,);
-  beta <- 1/beta_inv;
-  
-  ## covariate effects
-  gamma ~ dnorm(0,0.01);
-
-  ## AR(1) coef for proc errors
-  phi ~ dunif(-0.999,0.999);
-  
-  ## process variance for recruits model
-  sigma_r ~ dnorm(0, 2e-2) T(0,);
-  tau_r <- 1/sigma_r;
-  
-  ## innovation in first year
-  innov_1 ~ dnorm(0,tau_r*(1-phi*phi));
-  
-  ## obs variance for spawners
-  tau_s <- 1/sigma_s;
-  sigma_s ~ dnorm(0, 0.001) T(0,);
-  
-  ## maturity schedule
-  ## unif vec for Dirch prior
-  # for(i in 1:A) { theta[i] <- 1 }
-  theta <- c(1,10,10,5,1,1)
-  ## hyper-mean for maturity
-  pi_eta ~ ddirch(theta);
-  ## hyper-prec for maturity
-  pi_tau ~ dnorm(0, 0.01) T(0,);
-  for(t in 1:(n_yrs-age_min+n_fore)) { pi_vec[t,1:A] ~ ddirch(pi_eta*pi_tau) }
-
-  ## unprojectable early recruits;
-  ## hyper mean across all popns
-  Rec_mu ~ dnorm(0,0.001);
-  ## hyper SD across all popns
-  Rec_sig ~ dunif(0,100);
-  ## precision across all popns
-  Rec_tau <- pow(Rec_sig,-2);
-  ## multipliers for unobservable total runs
-	ttl_run_mu ~ dunif(1,5);
-	ttl_run_tau ~ dunif(1,20);
-
-  ## get total cal yr returns for first age_min yrs
-  for(i in 1:(age_min+age_skip)) {
-		ln_tot_Run[i] ~ dnorm(ttl_run_mu*Rec_mu,Rec_tau/ttl_run_tau);
-		tot_Run[i] <- exp(ln_tot_Run[i]);
-  }
-  
-  ##------------
-  ## LIKELIHOOD
-  ##------------
-  ## 1st brood yr requires different innovation
-  ## predicted recruits in BY t
-  covar[1] <- gamma*mod_cvrs[1];
-  ln_Rkr_a[1] <- mu_Rkr_a + covar[1]; 
-  E_ln_Rec[1] <- ln_Rkr_a[1] + ln_Sp[1] - beta*Sp[1] + phi*innov_1;
-  tot_ln_Rec[1] ~ dnorm(E_ln_Rec[1],tau_r);
-  res_ln_Rec[1] <- tot_ln_Rec[1] - E_ln_Rec[1];
-  ## median of total recruits
-  tot_Rec[1] <- exp(tot_ln_Rec[1]);
-  
-  ## R/S
-  ln_RS[1] <- tot_ln_Rec[1] - ln_Sp[1];
-  
-  ## brood-yr recruits by age
-  for(a in 1:A) {
-    Rec[1,a] <- tot_Rec[1] * pi_vec[1,a];
-  }
-  
-  ## brood years 2:(n_yrs-age_min)
-  for(t in 2:(n_yrs-age_min+n_fore)) {
-    ## predicted recruits in BY t
-    covar[t] <- gamma*mod_cvrs[t];
-    ln_Rkr_a[t] <- mu_Rkr_a + covar[t]; 
-    E_ln_Rec[t] <- ln_Rkr_a[t] + ln_Sp[t] - beta*Sp[t] + phi*res_ln_Rec[t-1];
-    tot_ln_Rec[t] ~ dnorm(E_ln_Rec[t],tau_r);
-    res_ln_Rec[t] <- tot_ln_Rec[t] - E_ln_Rec[t];
-    ## median of total recruits
-    tot_Rec[t] <- exp(tot_ln_Rec[t]);
-    ## R/S
-    ln_RS[t] <- tot_ln_Rec[t] - ln_Sp[t];
-    ## brood-yr recruits by age
-    for(a in 1:A) {
-      Rec[t,a] <- tot_Rec[t] * pi_vec[t,a];
-    }
-  } ## end t loop over year
-  
-  ## get predicted calendar year returns by age
-  ## matrix Run has dim [(n_yrs-age_min) x A]
-  ## step 1: incomplete early broods
-  ## first cal yr of this grp is first brood yr + age_min + age_skip
-  for(i in 1:(age_max-age_min-age_skip)) {
-    ## projected recruits
-    for(a in 1:(i+age_skip)) {
-      Run[i,a] <- Rec[(age_skip+i)-a+1,a];
-    }
-    ## imputed recruits
-    for(a in (i+1+age_skip):A) {
-      lnRec[i,a] ~ dnorm(Rec_mu,Rec_tau);
-      Run[i,a] <- exp(lnRec[i,a]);
-    }
-    ## total run size
-    tot_Run[i+age_min+age_skip] <- sum(Run[i,1:A]);
-    ## predicted age-prop vec for multinom
-    for(a in 1:A) {
-      age_v[i,a] <- Run[i,a] / tot_Run[i+age_min];
-    }
-    ## multinomial for age comp
-    dat_age[i,1:A] ~ dmulti(age_v[i,1:A],dat_age[i,A+1]);
-    lp_age[i] <- logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]);
-  }
-  
-  ## step 2: info from complete broods
-  ## first cal yr of this grp is first brood yr + age_max
-  for(i in (A-age_skip):(n_yrs-age_min-age_skip+n_fore)) {
-    for(a in 1:A) {
-      Run[i,a] <- Rec[(age_skip+i)-a+1,a];
-    }
-    ## total run size
-    tot_Run[i+age_min+age_skip] <- sum(Run[i,1:A]);
-    ## predicted age-prop vec for multinom
-    for(a in 1:A) {
-      age_v[i,a] <- Run[i,a] / tot_Run[i+age_min];
-    }
-    ## multinomial for age comp
-    dat_age[i,1:A] ~ dmulti(age_v[i,1:A],dat_age[i,A+1]);
-    lp_age[i] <- logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]);
-  }
-  
-  ## get predicted calendar year spawners
-  ## first cal yr is first brood yr
-  for(t in 1:(n_yrs+n_fore)) {
-    ## obs model for spawners
-    Sp[t] <- max(1,tot_Run[t] - dat_harv[t]);
-    ln_Sp[t] <- log(Sp[t]);
-    ln_dat_esc[t] ~ dnorm(ln_Sp[t], tau_s);
-    lp_esc[t] <- logdensity.norm(ln_dat_esc[t],ln_Sp[t], tau_s);
-  }
-  
-} ## end model description
-
-", file=file.path(jagsdir, "IPM_RK_cov_AR.txt"))
-```
-
-## Ricker with 2+ covars & AR(1)
-
-```{r JAGS_RK_cov2_AR}
 cat("
 
 model {
@@ -680,7 +521,7 @@ model {
   
 } ## end model description
 
-", file=file.path(jagsdir, "IPM_RK_cov2_AR.txt"))
+", file=file.path(jagsdir, "IPM_RK_cov_AR.txt"))
 ```
 
 ## Beverton-Holt with AR(1)
@@ -837,167 +678,9 @@ model {
 ", file=file.path(jagsdir, "IPM_BH_AR.txt"))
 ```
 
-## Beverton-Holt with 1 covar & AR(1)
+## Beverton-Holt with all covars & AR(1)
 
 ```{r JAGS_BH_cov_AR}
-cat("
-
-model {
-  
-  ##--------
-  ## PRIORS
-  ##--------
-  ## alpha = intrinsic productivity
-  alpha ~ dnorm(0,0.001) T(0,);
-  mu_BH_a <- log(alpha);
-  E_BH_a <- mu_BH_a + sigma_r/(2 - 2*phi^2);
-  
-  ## strength of dens depend
-  beta_inv ~ dnorm(0, 1e-9) T(0,);
-  beta <- 1/beta_inv;
-  
-  ## covariate effects
-  gamma ~ dnorm(0,0.01);
-
-  ## AR(1) coef for proc errors
-  phi ~ dunif(-0.999,0.999);
-  
-  ## innovation in first year
-  innov_1 ~ dnorm(0,tau_r*(1-phi*phi));
-  
-  ## process variance for recruits model
-  sigma_r ~ dnorm(0, 2e-2) T(0,);
-  tau_r <- 1/sigma_r;
-  
-  ## obs variance for spawners
-  tau_s <- 1/sigma_s;
-  sigma_s ~ dnorm(0, 0.001) T(0,);
-  
-  ## unprojectable early recruits;
-  ## hyper mean across all popns
-  Rec_mu ~ dnorm(0,0.001);
-  ## hyper SD across all popns
-  Rec_sig ~ dunif(0,100);
-  ## precision across all popns
-  Rec_tau <- pow(Rec_sig,-2);
-  ## multipliers for unobservable total runs
-	ttl_run_mu ~ dunif(1,5);
-	ttl_run_tau ~ dunif(1,20);
-
-  ## get total cal yr returns for first age_min yrs
-  for(i in 1:(age_min+age_skip)) {
-		ln_tot_Run[i] ~ dnorm(ttl_run_mu*Rec_mu,Rec_tau/ttl_run_tau);
-		tot_Run[i] <- exp(ln_tot_Run[i]);
-  }
-  
-  ## maturity schedule
-  ## unif vec for Dirch prior
-  # for(i in 1:A) { theta[i] <- 1 }
-  theta <- c(1,10,10,5,1,1)
-  ## hyper-mean for maturity
-  pi_eta ~ ddirch(theta);
-  ## hyper-prec for maturity
-  pi_tau ~ dnorm(0, 0.01) T(0,);
-  for(t in 1:(n_yrs-age_min+n_fore)) { pi_vec[t,1:A] ~ ddirch(pi_eta*pi_tau) }
-  
-  ##------------
-  ## LIKELIHOOD
-  ##------------
-  ## predicted recruits in BY t
-  covar[1] <- gamma*mod_cvrs[1];
-  ln_BH_a[1] <- mu_BH_a + covar[1]; 
-  E_ln_Rec[1] <- ln_BH_a[1] + ln_Sp[1] - log(1 + beta*Sp[1]) + phi*innov_1;
-  tot_ln_Rec[1] ~ dnorm(E_ln_Rec[1],tau_r);
-  res_ln_Rec[1] <- tot_ln_Rec[1] - E_ln_Rec[1];
-  ## median of total recruits
-  tot_Rec[1] <- exp(tot_ln_Rec[1]);
-  
-  ## R/S
-  ln_RS[1] <- tot_ln_Rec[1] - ln_Sp[1];
-  
-  ## brood-yr recruits by age
-  for(a in 1:A) {
-    Rec[1,a] <- tot_Rec[1] * pi_vec[1,a];
-  }
-  
-  ## brood years 2:(n_yrs-age_min)
-  for(t in 2:(n_yrs-age_min+n_fore)) {
-    ## predicted recruits in BY t
-    covar[t] <- gamma*mod_cvrs[t];
-    ln_BH_a[t] <- mu_BH_a + covar[t]; 
-    E_ln_Rec[t] <- ln_BH_a[t] + ln_Sp[t] - log(1 + beta*Sp[t]) + phi*res_ln_Rec[t-1];
-    tot_ln_Rec[t] ~ dnorm(E_ln_Rec[t],tau_r);
-    res_ln_Rec[t] <- tot_ln_Rec[t] - E_ln_Rec[t];
-    ## median of total recruits
-    tot_Rec[t] <- exp(tot_ln_Rec[t]);
-    ## R/S
-    ln_RS[t] <- tot_ln_Rec[t] - ln_Sp[t];
-    ## brood-yr recruits by age
-    for(a in 1:A) {
-      Rec[t,a] <- tot_Rec[t] * pi_vec[t,a];
-    }
-  } ## end t loop over year
-  
-  ## get predicted calendar year returns by age
-  ## matrix Run has dim [(n_yrs-age_min) x A]
-  ## step 1: incomplete early broods
-  ## first cal yr of this grp is first brood yr + age_min + age_skip
-  for(i in 1:(age_max-age_min-age_skip)) {
-    ## projected recruits
-    for(a in 1:(i+age_skip)) {
-      Run[i,a] <- Rec[(age_skip+i)-a+1,a];
-    }
-    ## imputed recruits
-    for(a in (i+1+age_skip):A) {
-      lnRec[i,a] ~ dnorm(Rec_mu,Rec_tau);
-      Run[i,a] <- exp(lnRec[i,a]);
-    }
-    ## total run size
-    tot_Run[i+age_min+age_skip] <- sum(Run[i,1:A]);
-    ## predicted age-prop vec for multinom
-    for(a in 1:A) {
-      age_v[i,a] <- Run[i,a] / tot_Run[i+age_min];
-    }
-    ## multinomial for age comp
-    dat_age[i,1:A] ~ dmulti(age_v[i,1:A],dat_age[i,A+1]);
-    lp_age[i] <- logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]);
-  }
-  
-  ## step 2: info from complete broods
-  ## first cal yr of this grp is first brood yr + age_max
-  for(i in (A-age_skip):(n_yrs-age_min-age_skip+n_fore)) {
-    for(a in 1:A) {
-      Run[i,a] <- Rec[(age_skip+i)-a+1,a];
-    }
-    ## total run size
-    tot_Run[i+age_min+age_skip] <- sum(Run[i,1:A]);
-    ## predicted age-prop vec for multinom
-    for(a in 1:A) {
-      age_v[i,a] <- Run[i,a] / tot_Run[i+age_min];
-    }
-    ## multinomial for age comp
-    dat_age[i,1:A] ~ dmulti(age_v[i,1:A],dat_age[i,A+1]);
-    lp_age[i] <- logdensity.multi(dat_age[i,1:A],age_v[i,1:A],dat_age[i,A+1]);
-  }
-  
-  ## get predicted calendar year spawners
-  ## first cal yr is first brood yr
-  for(t in 1:(n_yrs+n_fore)) {
-    ## obs model for spawners
-    Sp[t] <- max(10,tot_Run[t] - dat_harv[t]);
-    ln_Sp[t] <- log(Sp[t]);
-    ln_dat_esc[t] ~ dnorm(ln_Sp[t], tau_s);
-    lp_esc[t] <- logdensity.norm(ln_dat_esc[t],ln_Sp[t], tau_s);
-  }
-  
-} ## end model description
-
-", file=file.path(jagsdir, "IPM_BH_cov_AR.txt"))
-```
-
-## Beverton-Holt with 2+ covars & AR(1)
-
-```{r JAGS_BH_cov2_AR}
 cat("
 
 model {
@@ -1151,7 +834,7 @@ model {
   
 } ## end model description
 
-", file=file.path(jagsdir, "IPM_BH_cov2_AR.txt"))
+", file=file.path(jagsdir, "IPM_BH_cov_AR.txt"))
 ```
 
 ***
@@ -1275,53 +958,14 @@ t(round(autocorr.diag(mod_fits[[2]][,par_conv],
                       relative=FALSE), 2))
 ```
 
-## Models with 1 covariate
+## Models with all covariates
 
 ```{r jags_IO_covars, message = FALSE, warning = FALSE, cache = TRUE, eval=TRUE}
 ## function for inits
 init_vals_cov <- function() {
 	list(alpha = 5,
 	     beta_inv = exp(mean(ln_dat_esc, na.rm = TRUE)),
-	     gamma = 0,
-	     pi_tau = 10,
-	     pi_eta = rep(1,A),
-	     pi_vec = matrix(c(0.01,0.35,0.47,0.15,0.01,0.01),
-	                     n_yrs-age_min+n_fore, A, 
-	                     byrow = TRUE),
-	     Rec_mu = log(1000),
-	     Rec_sig = 0.1,
-	     tot_ln_Rec = rep(log(1000), n_yrs - age_min + n_fore),
-	     innov_1 = 0,
-	     phi = 0.5)
-}
-
-## Only monitor pointwise likelihoods for now
-par_jags <- c("gamma","lp_age","lp_esc")
-
-## fit models
-for(i in 1:n_cov) {
-  ## get covar of interest
-  dat_jags$mod_cvrs <- scl_cvrs[, i]
-  ## cnt & time stamp
-  cat("Count = ", i, "; Time = ", round(((proc.time()-timer_start)/60)["elapsed"], 1), "\n",
-      file = "cnt_time.txt", append = TRUE, sep = "")
-  ## Ricker with cov
-  mod_fits[[i*2+1]] <- fit_jags("IPM_RK_cov_AR.txt", dat_jags, par_jags,
-                              init_vals_cov, mcmc_ctrl)
-  ## B-H with cov
-  mod_fits[[i*2+2]] <- fit_jags("IPM_BH_cov_AR.txt", dat_jags, par_jags,
-                              init_vals_cov, mcmc_ctrl)
-}
-```
-
-## Models with 2+ covariates
-
-```{r jags_IO_covars_2, message = FALSE, warning = FALSE, cache = TRUE, eval=TRUE}
-## function for inits
-init_vals_cov2 <- function() {
-	list(alpha = 5,
-	     beta_inv = exp(mean(ln_dat_esc, na.rm = TRUE)),
-	     gamma = rep(0,3),
+	     gamma = rep(0,4),
 	     pi_tau = 10,
 	     pi_eta = rep(1,A),
 	     pi_vec = matrix(c(0.01,0.35,0.47,0.15,0.01,0.01),
@@ -1335,27 +979,16 @@ init_vals_cov2 <- function() {
 }
 
 ## set of multi-covariate models
-cset2 <- c("NPGO","STI","Hrel")
-dat_jags$n_cov <- length(cset2)
+cset <- c("flow_wtr", "flow_sum", "Hrel", "NPGO")
+dat_jags$n_cov <- length(cset)
+dat_jags$mod_cvrs <- scl_cvrs[, cset]
 
-## counter for model indexing
-cnt <- 13
-
-## fit models
-for(i in 1:3) {
-  ## get covar of interest
-  dat_jags$mod_cvrs <- scl_cvrs[, c("flow_wtr","flow_sum",cset2[i])]
-  ## cnt & time stamp
-  cat("Count = ", cnt, "; Time = ", round(((proc.time()-timer_start)/60)["elapsed"], 1), "\n",
-      file = "cnt_time.txt", append = TRUE, sep = "")
-  ## Ricker with cov
-  mod_fits[[cnt]] <- fit_jags("IPM_RK_cov2_AR.txt", dat_jags, par_jags,
-                              init_vals_cov2, mcmc_ctrl)
-  ## B-H with cov
-  mod_fits[[cnt+1]] <- fit_jags("IPM_BH_cov2_AR.txt", dat_jags, par_jags,
-                              init_vals_cov2, mcmc_ctrl)
-  cnt <- cnt + 2
-}
+## Ricker with cov
+mod_fits[[3]] <- fit_jags("IPM_RK_cov_AR.txt", dat_jags, par_jags,
+                            init_vals_cov, mcmc_ctrl)
+## B-H with cov
+mod_fits[[4]] <- fit_jags("IPM_BH_cov_AR.txt", dat_jags, par_jags,
+                              init_vals_cov, mcmc_ctrl)
 ```
 
 ```{r stop_timer, include = FALSE}
@@ -1412,7 +1045,7 @@ colnames(dWAIC) <- c("dWAIC_both","dWAIC_age","dWAIC_esc")
 ## wt_LOO <- exp(-0.5*LOO)/sum(exp(-0.5*LOO))
 ## Table of model selection results
 tbl_WAIC <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
-                  covar = c(c(NA,NA), rep(colnames(scl_cvrs),ea = 2), rep(cset2,ea = 2)),
+                  covar = c(c(NA,NA), rep(colnames(scl_cvrs),ea = 2), rep(cset,ea = 2)),
                   round(WAIC,1),
                   dWAIC,
                   round(cc_smry_1, 2))
@@ -1451,7 +1084,7 @@ tbl_WAIC_both <- round(compare(x = WAIC_both), 2)
 rownames(tbl_WAIC_both) <- sub("model", "", rownames(tbl_WAIC_both))
 tbl_WAIC_both <- tbl_WAIC_both[order(as.numeric(rownames(tbl_WAIC_both))), ]
 tbl_WAIC_both <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
-                       covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset2,ea = 2)),
+                       covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset,ea = 2)),
                        as.data.frame(tbl_WAIC_both))
 tbl_WAIC_both[order(tbl_WAIC_both[,"waic"]), ]
 
@@ -1460,7 +1093,7 @@ tbl_WAIC_age <- round(compare(x = WAIC_age), 2)
 rownames(tbl_WAIC_age) <- sub("model", "", rownames(tbl_WAIC_age))
 tbl_WAIC_age <- tbl_WAIC_age[order(as.numeric(rownames(tbl_WAIC_age))), ]
 tbl_WAIC_age <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
-                      covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset2,ea = 2)),
+                      covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset,ea = 2)),
                       as.data.frame(tbl_WAIC_age))
 tbl_WAIC_age[order(tbl_WAIC_age[,"waic"]), ]
 
@@ -1469,7 +1102,7 @@ tbl_WAIC_esc <- round(compare(x = WAIC_esc), 2)
 rownames(tbl_WAIC_esc) <- sub("model", "", rownames(tbl_WAIC_esc))
 tbl_WAIC_esc <- tbl_WAIC_esc[order(as.numeric(rownames(tbl_WAIC_esc))), ]
 tbl_WAIC_esc <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
-                      covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset2,ea = 2)),
+                      covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset,ea = 2)),
                       as.data.frame(tbl_WAIC_esc))
 tbl_WAIC_esc[order(tbl_WAIC_esc[,"waic"]), ]
 ```
@@ -1529,7 +1162,7 @@ colnames(dLOO) <- c("dLOO_both","dLOO_age","dLOO_esc")
 ## wt_LOO <- exp(-0.5*LOO)/sum(exp(-0.5*LOO))
 ## Table of model selection results
 tbl_LOO <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
-                 covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset2,ea = 2)),
+                 covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset,ea = 2)),
                  round(LOO,1),
                  dLOO,
                  round(cc_smry_1, 2))
@@ -1568,7 +1201,7 @@ tbl_LOO_both <- round(compare(x = LOO_both), 2)
 rownames(tbl_LOO_both) <- sub("model", "", rownames(tbl_LOO_both))
 tbl_LOO_both <- tbl_LOO_both[order(as.numeric(rownames(tbl_LOO_both))), ]
 tbl_LOO_both <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
-                      covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset2,ea = 2)),
+                      covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset,ea = 2)),
                       as.data.frame(tbl_LOO_both))
 tbl_LOO_both[order(tbl_LOO_both[,"looic"]), ]
 
@@ -1577,7 +1210,7 @@ tbl_LOO_age <- round(compare(x = LOO_age), 2)
 rownames(tbl_LOO_age) <- sub("model", "", rownames(tbl_LOO_age))
 tbl_LOO_age <- tbl_LOO_age[order(as.numeric(rownames(tbl_LOO_age))), ]
 tbl_LOO_age <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
-                     covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset2,ea = 2)),
+                     covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset,ea = 2)),
                      as.data.frame(tbl_LOO_age))
 tbl_LOO_age[order(tbl_LOO_age[,"looic"]), ]
 
@@ -1586,7 +1219,7 @@ tbl_LOO_esc <- round(compare(x = LOO_esc), 2)
 rownames(tbl_LOO_esc) <- sub("model", "", rownames(tbl_LOO_esc))
 tbl_LOO_esc <- tbl_LOO_esc[order(as.numeric(rownames(tbl_LOO_esc))), ]
 tbl_LOO_esc <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
-                     covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset2,ea = 2)),
+                     covar = c(c(NA,NA),rep(colnames(scl_cvrs),ea = 2), rep(cset,ea = 2)),
                      as.data.frame(tbl_LOO_esc))
 tbl_LOO_esc[order(tbl_LOO_esc[,"looic"]), ]
 ```
@@ -1621,7 +1254,7 @@ par_jags <- c("alpha","E_BH_a","ln_BH_a",
               "Sp","Rec","tot_ln_Rec","ln_RS",
               "pi_eta","pi_tau",
               "sigma_r","sigma_s","res_ln_Rec")
-best_fit <- fit_jags("IPM_BH_cov2_AR.txt", dat_jags, par_jags, init_vals_cov2, mcmc_ctrl)
+best_fit <- fit_jags("IPM_BH_cov_AR.txt", dat_jags, par_jags, init_vals_cov, mcmc_ctrl)
 ```
 
 ## Model diagnostics
