@@ -999,7 +999,7 @@ cat(run_time_in_min, file = "run_time_in_min.txt")
 # Effect sizes
 
 ```{r}
-## empty mat for covar 
+## table of effect sizes 
 cc_smry <- data.frame(covariate = cset,
                       Rlo = rep(NA,4),
                       Rmd = rep(NA,4),
@@ -1007,9 +1007,14 @@ cc_smry <- data.frame(covariate = cset,
                       BHlo = rep(NA,4),
                       BHmd = rep(NA,4),
                       BH = rep(NA,4))
-
-cc_smry[i,] <- summary(mod_fits[[i]])$quantiles["gamma", c("2.5%","50%","97.5%")]
-
+## grab posterior summaries
+for(i in 1:4) {
+  cc_smry[i,2:4] <- summary(mod_fits[[3]])$quantiles[paste0("gamma[",i,"]"),
+                                                     c("2.5%","50%","97.5%")]
+  cc_smry[i,5:7] <- summary(mod_fits[[4]])$quantiles[paste0("gamma[",i,"]"),
+                                                     c("2.5%","50%","97.5%")]
+}
+cc_smry
 ```
 
 
@@ -1138,9 +1143,7 @@ p1
 
 Now we'll refit the best model and save all of the parameters/states of interest. In this case, we'll select the model with a Ricker process model and the following 3 covariates: summer flow, winter flow, and NPGO.
 
-```{r refit_best_mod, cache = TRUE}
-best_idx <- 18
-dat_jags$mod_cvrs <- scl_cvrs[,c("flow_wtr","flow_sum","Hrel")]
+```{r refit_best_mod, cache = TRUE, eval=FALSE}
 ## params/states to return
 par_jags <- c("alpha","E_BH_a","ln_BH_a",
               "beta",
@@ -1157,7 +1160,7 @@ Here is a histogram of the Gelman & Rubin statistics $(R_{hat})$ for the estimat
 
 ```{r model_diagnostics}
 # params of interest
-par_conv <- c("alpha","beta",paste0("gamma[",seq(3),"]"),
+par_conv <- c("alpha","beta",paste0("gamma[",seq(4),"]"),
               "sigma_r","sigma_s","pi_tau",paste0("pi_eta[",seq(A-1),"]"))
 ## Gelman-Rubin
 gelman.diag(best_fit[,par_conv])
