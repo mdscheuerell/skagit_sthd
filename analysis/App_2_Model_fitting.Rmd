@@ -234,7 +234,6 @@ model {
   
   ## maturity schedule
   ## unif vec for Dirch prior
-  # for(i in 1:A) { theta[i] <- 1 }
   theta <- c(1,10,10,5,1,1)
   ## hyper-mean for maturity
   pi_eta ~ ddirch(theta);
@@ -374,7 +373,6 @@ model {
   
   ## covariate effects
   for(i in 1:n_cov) { gamma[i] ~ dnorm(0,0.01) }
-  # gamma ~ dnorm(0,0.01);
 
   ## AR(1) coef for proc errors
   phi ~ dunif(-0.999,0.999);
@@ -392,7 +390,6 @@ model {
   
   ## maturity schedule
   ## unif vec for Dirch prior
-  # for(i in 1:A) { theta[i] <- 1 }
   theta <- c(1,10,10,5,1,1)
   ## hyper-mean for maturity
   pi_eta ~ ddirch(theta);
@@ -565,7 +562,6 @@ model {
   
   ## maturity schedule
   ## unif vec for Dirch prior
-  # for(i in 1:A) { theta[i] <- 1 }
   theta <- c(1,10,10,5,1,1)
   ## hyper-mean for maturity
   pi_eta ~ ddirch(theta);
@@ -688,7 +684,6 @@ model {
   
   ## covariate effects
   for(i in 1:n_cov) { gamma[i] ~ dnorm(0,0.01) }
-  # gamma ~ dnorm(0,0.01);
 
   ## AR(1) coef for proc errors
   phi ~ dunif(-0.999,0.999);
@@ -723,7 +718,6 @@ model {
   
   ## maturity schedule
   ## unif vec for Dirch prior
-  # for(i in 1:A) { theta[i] <- 1 }
   theta <- c(1,10,10,5,1,1)
   ## hyper-mean for maturity
   pi_eta ~ ddirch(theta);
@@ -955,7 +949,7 @@ t(round(autocorr.diag(mod_fits[[2]][,par_conv],
 init_vals_cov <- function() {
 	list(alpha = 5,
 	     beta_inv = exp(mean(ln_dat_esc, na.rm = TRUE)),
-	     gamma = rep(0,4),
+	     gamma = rep(0, n_mods),
 	     pi_tau = 10,
 	     pi_eta = rep(1,A),
 	     pi_vec = matrix(c(0.01,0.35,0.47,0.15,0.01,0.01),
@@ -978,10 +972,10 @@ dat_jags$mod_cvrs <- scl_cvrs[, cset]
 
 ## Ricker with cov
 mod_fits[[3]] <- fit_jags("IPM_RK_cov_AR.txt", dat_jags, par_jags,
-                            init_vals_cov, mcmc_ctrl)
+                          init_vals_cov, mcmc_ctrl)
 ## B-H with cov
 mod_fits[[4]] <- fit_jags("IPM_BH_cov_AR.txt", dat_jags, par_jags,
-                              init_vals_cov, mcmc_ctrl)
+                          init_vals_cov, mcmc_ctrl)
 ```
 
 ```{r stop_timer, include = FALSE}
@@ -995,12 +989,12 @@ cat(run_time_in_min, file = "run_time_in_min.txt")
 ```{r tbl_effect_sizes}
 ## table of effect sizes 
 cc_smry <- data.frame(covariate = cset,
-                      Rlo = rep(NA,4),
-                      Rmd = rep(NA,4),
-                      Rup = rep(NA,4),
-                      BHlo = rep(NA,4),
-                      BHmd = rep(NA,4),
-                      BH = rep(NA,4))
+                      Rlo = rep(NA, n_mods),
+                      Rmd = rep(NA, n_mods),
+                      Rup = rep(NA, n_mods),
+                      BHlo = rep(NA, n_mods),
+                      BHmd = rep(NA, n_mods),
+                      BH = rep(NA, n_mods))
 ## grab posterior summaries
 for(i in 1:4) {
   cc_smry[i,2:4] <- round(summary(mod_fits[[3]])$quantiles[paste0("gamma[",i,"]"),
@@ -1053,18 +1047,12 @@ for(i in 1:n_mods) {
 dLOO <- round(t(t(LOO) - apply(t(LOO), 1, min)), 1)
 colnames(dLOO) <- c("dLOO_both","dLOO_age","dLOO_esc")
 
-## wt_LOO <- exp(-0.5*LOO)/sum(exp(-0.5*LOO))
 ## Table of model selection results
 tbl_LOO <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
                  covar = rep(c("No","Yes"),ea=2),
                  round(LOO,1),
                  dLOO)
 tbl_LOO
-# write.csv(tbl_LOO,  row.names = FALSE,
-#           file = "Skagit_steelhead_model_selection.csv")
-# best_idx <- which(tbl_LOO$dLOO==0)
-# tbl_LOO[,!(names(tbl_LOO) %in% c("lag","WAIC"))]
-# tbl_LOO[order(tbl_LOO$LOO),]
 ```
 
 Via `loo()` and `compare()` with full table of results.
@@ -1153,7 +1141,7 @@ best_fit <- fit_jags("IPM_BH_cov_AR.txt", dat_jags, par_jags, init_vals_cov, mcm
 Here is a histogram of the Gelman & Rubin statistics $(R_{hat})$ for the estimated parameters. Recall that we set an upper threshold of `r Rhat_thresh`, so values larger than that deserve some additional inspection.
 
 ```{r model_diagnostics, eval=FALSE}
-# params of interest
+## params of interest
 par_conv <- c("alpha","beta",paste0("gamma[",seq(4),"]"),
               "sigma_r","sigma_s","pi_tau",paste0("pi_eta[",seq(A-1),"]"))
 ## Gelman-Rubin
