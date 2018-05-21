@@ -874,7 +874,8 @@ Please note that the following code takes ~20 min to run on a quad-core machine 
 
 ```{r jags_IO_base}
 ## empty list for fits
-mod_fits <- vector("list", 2*(1+n_cov+3))
+n_mods <- 4
+mod_fits <- vector("list", n_mods)
 
 ## function for inits
 init_vals_AR <- function() {
@@ -967,6 +968,9 @@ init_vals_cov <- function() {
 	     phi = 0.5)
 }
 
+## Only monitor pointwise likelihoods for now
+par_jags <- c("gamma","lp_age","lp_esc")
+
 ## set of multi-covariate models
 cset <- colnames(scl_cvrs)
 dat_jags$n_cov <- length(cset)
@@ -988,7 +992,7 @@ cat(run_time_in_min, file = "run_time_in_min.txt")
 
 # Effect sizes
 
-```{r}
+```{r tbl_effect_sizes}
 ## table of effect sizes 
 cc_smry <- data.frame(covariate = cset,
                       Rlo = rep(NA,4),
@@ -999,10 +1003,10 @@ cc_smry <- data.frame(covariate = cset,
                       BH = rep(NA,4))
 ## grab posterior summaries
 for(i in 1:4) {
-  cc_smry[i,2:4] <- summary(mod_fits[[3]])$quantiles[paste0("gamma[",i,"]"),
-                                                     c("2.5%","50%","97.5%")]
-  cc_smry[i,5:7] <- summary(mod_fits[[4]])$quantiles[paste0("gamma[",i,"]"),
-                                                     c("2.5%","50%","97.5%")]
+  cc_smry[i,2:4] <- round(summary(mod_fits[[3]])$quantiles[paste0("gamma[",i,"]"),
+                                                           c("2.5%","50%","97.5%")], 3)
+  cc_smry[i,5:7] <- round(summary(mod_fits[[4]])$quantiles[paste0("gamma[",i,"]"),
+                                                           c("2.5%","50%","97.5%")], 3)
 }
 cc_smry
 ```
@@ -1020,7 +1024,7 @@ LOO <- data.frame(LOO_both=rep(NA, n_mods),
                   LOO_age=rep(NA, n_mods),
                   LOO_esc=rep(NA, n_mods))
 
-par(mfrow=c(1,2), mai=c(1,1,0.1,0.1), omi=rep(0,4))
+par(mfrow=c(1,2), mai=c(1,1,0.2,0.1), omi=rep(0.1,4))
 
 ## extract log densities from JAGS objects
 for(i in 1:n_mods) {
@@ -1148,7 +1152,7 @@ best_fit <- fit_jags("IPM_BH_cov_AR.txt", dat_jags, par_jags, init_vals_cov, mcm
 
 Here is a histogram of the Gelman & Rubin statistics $(R_{hat})$ for the estimated parameters. Recall that we set an upper threshold of `r Rhat_thresh`, so values larger than that deserve some additional inspection.
 
-```{r model_diagnostics}
+```{r model_diagnostics, eval=FALSE}
 # params of interest
 par_conv <- c("alpha","beta",paste0("gamma[",seq(4),"]"),
               "sigma_r","sigma_s","pi_tau",paste0("pi_eta[",seq(A-1),"]"))
@@ -1162,6 +1166,6 @@ t(round(autocorr.diag(best_fit[,par_conv],
 
 These diagnostics look pretty good, so we'll save the output for this model.
 
-```{r save_model}
+```{r save_model, eval=FALSE}
 save(best_fit, file = file.path(analdir, "best_fit.rda"))
 ```
