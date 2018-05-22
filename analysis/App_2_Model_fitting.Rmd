@@ -849,9 +849,9 @@ dat_jags <- list(dat_age = dat_age,
 ## 3. MCMC control params
 mcmc_ctrl <- list(
   chains = 4,
-  length = 1.25e5,
-  burn = 5e4,
-  thin = 100
+  length = 2.5e5,
+  burn = 1e5,
+  thin = 200
 )
 ## total number of MCMC samples after burnin
 mcmc_samp <- mcmc_ctrl$length*mcmc_ctrl$chains/mcmc_ctrl$thin
@@ -944,7 +944,9 @@ t(round(autocorr.diag(mod_fits[[2]][,par_conv],
 
 ## Models with all covariates
 
-```{r jags_IO_covars, message = FALSE, warning = FALSE, cache = TRUE, eval=TRUE}
+Now we fit the models that include covariates. Here is the `inits` function for `fit_jags()` and a specification of the covariates.
+
+```{r inits_cov}
 ## function for inits
 init_vals_cov <- function() {
 	list(alpha = 5,
@@ -962,17 +964,41 @@ init_vals_cov <- function() {
 	     phi = 0.5)
 }
 
-## Only monitor pointwise likelihoods for now
-par_jags <- c("gamma","lp_age","lp_esc")
-
 ## set of multi-covariate models
 cset <- colnames(scl_cvrs)
 dat_jags$n_cov <- length(cset)
 dat_jags$mod_cvrs <- scl_cvrs[, cset]
+```
+
+## Ricker
+
+```{r fit_Ricker_cov, message = FALSE, warning = FALSE, cache = TRUE, eval=TRUE}
+## params/states to return
+par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
+              "beta",
+              "gamma",
+              "Sp","Rec","tot_ln_Rec","ln_RS",
+              "pi_eta","pi_tau",
+              "sigma_r","sigma_s","res_ln_Rec",
+              "lp_age","lp_esc")
 
 ## Ricker with cov
 mod_fits[[3]] <- fit_jags("IPM_RK_cov_AR.txt", dat_jags, par_jags,
                           init_vals_cov, mcmc_ctrl)
+```
+
+## Beverton-Holt
+
+```{r fit_BH_cov, message = FALSE, warning = FALSE, cache = TRUE, eval=TRUE}
+## params/states to return
+par_jags <- c("alpha","E_BH_a","ln_BH_a",
+              "beta",
+              "gamma",
+              "Sp","Rec","tot_ln_Rec","ln_RS",
+              "pi_eta","pi_tau",
+              "sigma_r","sigma_s","res_ln_Rec",
+              "lp_age","lp_esc")
+
 ## B-H with cov
 mod_fits[[4]] <- fit_jags("IPM_BH_cov_AR.txt", dat_jags, par_jags,
                           init_vals_cov, mcmc_ctrl)
@@ -989,75 +1015,29 @@ cat(run_time_in_min, file = "run_time_in_min.txt")
 ```{r tbl_effect_sizes}
 ## table of effect sizes 
 cc_smry <- data.frame(covariate = cset,
-                      Rlo = rep(NA, n_mods),
-                      Rmd = rep(NA, n_mods),
-                      Rup = rep(NA, n_mods),
-                      BHlo = rep(NA, n_mods),
-                      BHmd = rep(NA, n_mods),
-                      BH = rep(NA, n_mods))
-## grab posterior summaries
-for(i in 1:4) {
-  cc_smry[i,2:4] <- round(summary(mod_fits[[3]])$quantiles[paste0("gamma[",i,"]"),
-                                                           c("2.5%","50%","97.5%")], 3)
-  cc_smry[i,5:7] <- round(summary(mod_fits[[4]])$quantiles[paste0("gamma[",i,"]"),
-                                                           c("2.5%","50%","97.5%")], 3)
-}
+                      R_lo = rep(NA, n_mods),
+                      R_med = rep(NA, n_mods),
+                      R_up = rep(NA, n_mods),
+                      BH_lo = rep(NA, n_mods),
+                      BH_med = rep(NA, n_mods),
+                      BH_up = rep(NA, n_mods))
+## Ricker
+RR <- do.call(rbind, mod_fits[[3]])
+cc_smry[,2:4] <- t(apply(RR[,grep("gamma", colnames(RR))], 2, quantile, c(0.025,0.5,0.975)))
+## B-H
+BH <- do.call(rbind, mod_fits[[4]])
+cc_smry[,5:7] <- t(apply(RR[,grep("gamma", colnames(RR))], 2, quantile, c(0.025,0.5,0.975)))
+cc_smry[,-1] <- round(cc_smry[,-1], 2)
+## print table
 cc_smry
 ```
 
-
 # Model selection
-
-## Using LOOIC
-
-Via `loo()` with delta values and covariate effects.
-
-```{r get_LOOIC, fig.height=4, fig.width=7, warning=FALSE, cache=TRUE}
-## empty df for LOOIC 
-LOO <- data.frame(LOO_both=rep(NA, n_mods),
-                  LOO_age=rep(NA, n_mods),
-                  LOO_esc=rep(NA, n_mods))
-
-par(mfrow=c(1,2), mai=c(1,1,0.2,0.1), omi=rep(0.1,4))
-
-## extract log densities from JAGS objects
-for(i in 1:n_mods) {
-  ## convert mcmc.list to matrix
-  tmp_lp <- as.matrix(mod_fits[[i]])
-  ## extract pointwise likelihoods
-  tmp_lp <- tmp_lp[,grepl("lp_", colnames(tmp_lp))]
-  ## if numerical underflows, convert -Inf to 5% less than min(likelihood)
-  if(any(is.infinite(tmp_lp))) {
-    tmp_lp[is.infinite(tmp_lp)] <- NA
-    tmp_min <- min(tmp_lp, na.rm = TRUE)
-    tmp_lp[is.na(tmp_lp)] <- tmp_min * 1.05
-  }
-  
-  ## calculate LOOIC
-  eloo <- loo(tmp_lp)
-  plot(eloo)
-  LOO[i,"LOO_both"] <- eloo$looic
-  eloo <- loo(tmp_lp[,grep("age",colnames(tmp_lp))])
-  LOO[i,"LOO_age"] <- eloo$looic
-  eloo <- loo(tmp_lp[,grep("esc",colnames(tmp_lp))])
-  LOO[i,"LOO_esc"] <- eloo$looic
-}
-
-## delta-LOOIC
-dLOO <- round(t(t(LOO) - apply(t(LOO), 1, min)), 1)
-colnames(dLOO) <- c("dLOO_both","dLOO_age","dLOO_esc")
-
-## Table of model selection results
-tbl_LOO <- cbind(model = rep(c("Ricker","B-H"),n_mods/2),
-                 covar = rep(c("No","Yes"),ea=2),
-                 round(LOO,1),
-                 dLOO)
-tbl_LOO
-```
 
 Via `loo()` and `compare()` with full table of results.
 
-```{r get_LOOIC_c, warning=FALSE, cache=TRUE}
+```{r get_LOOIC_c, fig.height=8, fig.width=6, warning=FALSE, cache=FALSE}
+par(mfrow=c(4,1), mai=c(0.6,0.6,0.1,0.1), omi=rep(0,4))
 LOO_both <- LOO_age <- LOO_esc <- vector("list", n_mods)
 ## extract log densities from JAGS objects
 for(i in 1:n_mods) {
@@ -1073,6 +1053,7 @@ for(i in 1:n_mods) {
   }
   ## calculate LOOIC
   LOO_both[[i]] <- loo(tmp_lp)
+  plot(LOO_both[[i]], main="")
   LOO_age[[i]] <- loo(tmp_lp[,grep("age",colnames(tmp_lp))])
   LOO_esc[[i]] <- loo(tmp_lp[,grep("esc",colnames(tmp_lp))])
 }
@@ -1107,7 +1088,7 @@ tbl_LOO_esc[order(tbl_LOO_esc[,"looic"]), ]
 
 ## Distribution of pointwise likelihoods
 
-At the moment this is for the last model only (i.e., B-H with hatchery releases as a covariate).
+At the moment this is for the Beverton-Holt model with covariates.
 
 ```{r lp_violins, fig.height=4, fig.width=7}
 ## base plot
@@ -1121,26 +1102,12 @@ p1 <- pp + geom_violin()
 p1
 ```
 
-# Refit best model
-
-Now we'll refit the best model and save all of the parameters/states of interest. In this case, we'll select the model with a Ricker process model and the following 3 covariates: summer flow, winter flow, and NPGO.
-
-```{r refit_best_mod, cache = TRUE, eval=FALSE}
-## params/states to return
-par_jags <- c("alpha","E_BH_a","ln_BH_a",
-              "beta",
-              "gamma",
-              "Sp","Rec","tot_ln_Rec","ln_RS",
-              "pi_eta","pi_tau",
-              "sigma_r","sigma_s","res_ln_Rec")
-best_fit <- fit_jags("IPM_BH_cov_AR.txt", dat_jags, par_jags, init_vals_cov, mcmc_ctrl)
-```
-
 ## Model diagnostics
 
 Here is a histogram of the Gelman & Rubin statistics $(R_{hat})$ for the estimated parameters. Recall that we set an upper threshold of `r Rhat_thresh`, so values larger than that deserve some additional inspection.
 
-```{r model_diagnostics, eval=FALSE}
+```{r model_diagnostics, eval=TRUE}
+best_fit <- mod_fits[[4]]
 ## params of interest
 par_conv <- c("alpha","beta",paste0("gamma[",seq(4),"]"),
               "sigma_r","sigma_s","pi_tau",paste0("pi_eta[",seq(A-1),"]"))
