@@ -7,6 +7,7 @@ output:
     toc: yes
     toc_depth: 3
     toc_float: yes
+    number_sections: true
   pdf_document:
     toc: yes
     toc_depth: '3'
@@ -864,7 +865,7 @@ timer_start <- proc.time()
 
 ## Models without covariates
 
-Please note that the following code takes ~20 min to run on a quad-core machine with 3.5 GHz Intel processors.
+Please note that the following code takes ~80 min to run on a quad-core machine with 3.5 GHz Intel processors.
 
 ```{r jags_IO_base}
 ## empty list for fits
@@ -1026,9 +1027,9 @@ RR <- do.call(rbind, mod_fits[[3]])
 cc_smry[,2:4] <- t(apply(RR[,grep("gamma", colnames(RR))], 2, quantile, c(0.025,0.5,0.975)))
 ## B-H
 BH <- do.call(rbind, mod_fits[[4]])
-cc_smry[,5:7] <- t(apply(RR[,grep("gamma", colnames(RR))], 2, quantile, c(0.025,0.5,0.975)))
-cc_smry[,-1] <- round(cc_smry[,-1], 2)
+cc_smry[,5:7] <- t(apply(BH[,grep("gamma", colnames(BH))], 2, quantile, c(0.025,0.5,0.975)))
 ## print table
+cc_smry[,-1] <- round(cc_smry[,-1], 2)
 cc_smry
 ```
 
