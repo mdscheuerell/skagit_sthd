@@ -1068,6 +1068,17 @@ tbl_LOO_both <- cbind(model = rep(c("Ricker","B-H"),2),
                       as.data.frame(tbl_LOO_both))
 tbl_LOO_both[order(tbl_LOO_both[,"looic"]), ]
 
+## LOOIC for all data (pairwise)
+## Difference will be positive (negative) if the expected predictive accuracy for the second (first) model is higher.
+## Ricker with(out) covariates
+compare(LOO_both[[1]], LOO_both[[3]])
+## BH with(out) covariates
+compare(LOO_both[[2]], LOO_both[[4]])
+## Ricker to BH without covariates
+compare(LOO_both[[1]], LOO_both[[2]])
+## Ricker to BH with covariates
+compare(LOO_both[[3]], LOO_both[[4]])
+
 ## LOOIC for age data only
 tbl_LOO_age <- round(compare(x = LOO_age), 2)
 rownames(tbl_LOO_age) <- sub("model", "", rownames(tbl_LOO_age))
