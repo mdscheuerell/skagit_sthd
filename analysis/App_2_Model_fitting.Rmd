@@ -376,7 +376,8 @@ model {
   for(i in 1:n_cov) { gamma[i] ~ dnorm(0,0.01) }
 
   ## AR(1) coef for proc errors
-  phi ~ dunif(-0.999,0.999);
+  # phi ~ dunif(-0.999,0.999);
+  phi <- 0;
   
   ## process variance for recruits model
   sigma_r ~ dnorm(0, 2e-2) T(0,);
@@ -687,7 +688,8 @@ model {
   for(i in 1:n_cov) { gamma[i] ~ dnorm(0,0.01) }
 
   ## AR(1) coef for proc errors
-  phi ~ dunif(-0.999,0.999);
+  # phi ~ dunif(-0.999,0.999);
+  phi <- 0;
   
   ## innovation in first year
   innov_1 ~ dnorm(0,tau_r*(1-phi*phi));
