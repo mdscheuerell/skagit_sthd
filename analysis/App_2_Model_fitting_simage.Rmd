@@ -170,11 +170,15 @@ dat_age <- as.matrix(dat_age)
 This is an attempt to evaluate the influence of the age composition data on the model selection via LOO.
 
 ```{r sim_age}
-set.seed(123)
-cs <- colSums(dat_age[,paste0("age",seq(3,8))], na.rm = TRUE)
-ap <- cs/sum(cs)
-dat_age <- t(rmultinom(nrow(dat_age), size = 200, prob = ap))
-dat_age <- cbind(dat_age, sum = rowSums(dat_age))
+# set.seed(123)
+# cs <- colSums(dat_age[,paste0("age",seq(3,8))], na.rm = TRUE)
+# ap <- cs/sum(cs)
+# dat_age <- t(rmultinom(nrow(dat_age), size = 200, prob = ap))
+# dat_age <- cbind(dat_age, sum = rowSums(dat_age))
+
+na_max <- max(dat_age[-idx_NA_yrs,"sum"])
+dat_age[-idx_NA_yrs,-(A+1)] <- floor(dat_age[-idx_NA_yrs,-(A+1)] / dat_age[-idx_NA_yrs,"sum"] * na_max)
+dat_age[-idx_NA_yrs,"sum"] <- rowSums(dat_age[-idx_NA_yrs,-(A+1)])
 ```
 
 
