@@ -69,7 +69,7 @@ if(!require("ggplot2")) {
 }
 ## set directory locations
 datadir <- here("data")
-jagsdir <- here("jags")
+standir <- here("stan")
 analdir <- here("analysis")
 ## Stan options
 ## write to disk
@@ -440,7 +440,7 @@ model {
 
 }
 
-", file=file.path(jagsdir, "IPM_RK_AR.txt"))
+", file=file.path(standir, "IPM_RK_AR.stan"))
 ```
 
 ## Ricker with all covars & AR(1)
@@ -474,7 +474,7 @@ cat("
 
 # initial Stan prep
 
-```{r}
+```{r eval=FALSE}
 #----------
 # get data
 #----------
@@ -658,7 +658,7 @@ par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
 par_Stan <- c("log_a","b","K","pp","sigma_proc","sigma_obs","R_tot","Rec","spawners","mu_p","prec_p")
 
 # fit the model in Stan & store results
-stan.sksh <- stan(file = "Skagit_steelhead_SSM.stan",
+stan.sksh <- stan(file = file.path(standir, "IPM_RK_AR.stan"),
                   data = dat_Stan, 
                   init = init_Stan, 
                   pars = par_Stan,
