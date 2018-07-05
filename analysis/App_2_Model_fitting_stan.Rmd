@@ -176,8 +176,10 @@ dat_esc <- read_csv(file.path(datadir, fn_esc))
 dat_yrs <- dat_esc$year
 ## number of years of data
 n_yrs <- length(dat_yrs)
+## drop year col
+dat_esc <- dat_esc$escapement
 ## log of escapement
-ln_dat_esc <- c(log(dat_esc$escapement),rep(NA,n_fore))
+# ln_dat_esc <- c(log(dat_esc$escapement),rep(NA,n_fore))
 ## years with missing data
 yr_NA_esc <- is.na(dat_esc)
 ```
@@ -200,13 +202,13 @@ if(n_fore > 0) {
 ## total num of age obs by cal yr
 dat_age[,"sum"] <- apply(dat_age, 1, sum)
 ## row indices for any years with no obs age comp
-idx_NA_yrs <- which(dat_age$sum<AA, TRUE)
+idx_NA_yrs <- which(dat_age$sum == 0, TRUE)
 ## replace 0's in yrs w/o any obs with NA's
-dat_age[idx_NA_yrs,(1:AA)] <- NA
+# dat_age[idx_NA_yrs,(1:AA)] <- NA
 ## change total in yrs w/o any obs from 0 to AA to help dmulti()
 dat_age[idx_NA_yrs,"sum"] <- AA
 ## convert class
-dat_age <- as.matrix(dat_age)
+dat_age <- as.matrix(dat_age[,1:AA])
 ```
 
 And then the harvest data:
@@ -538,18 +540,7 @@ Before fitting the model in JAGS, we need to specify:
 3. the MCMC control parameters.
 
 ```{r jags_setup}
-## 1. Data to pass to JAGS
-dat_jags <- list(dat_age = dat_age,
-                 ln_dat_esc = ln_dat_esc,
-                 dat_harv = dat_harv,
-                 AA = AA,
-                 age_min = age_min,
-                 age_max = age_max,
-                 age_skip = age_skip,
-                 n_yrs = n_yrs,
-                 n_fore = n_fore) 
-
-## data list for Stan
+## 1. Data to pass to Stan
 dat_Stan <- list(
   n_yrs = as.integer(n_yrs),
   AA = as.integer(AA),
@@ -629,7 +620,7 @@ init_Stan <- function()
 
 ### Ricker
 
-```{r fit_Ricker_base, message = FALSE, warning = FALSE, cache = TRUE}
+```{r fit_Ricker_base, message = FALSE, warning = FALSE, cache = FALSE}
 ## params/states for Stan to return
 par_Stan <- c("log_a","b","K","pp","sigma_proc","sigma_obs","R_tot","Rec","spawners","mu_p","prec_p")
 
