@@ -595,22 +595,6 @@ Please note that the following code takes ~80 min to run on a quad-core machine 
 n_mods <- 4
 mod_fits <- vector("list", n_mods)
 
-## function for inits
-init_vals_AR <- function() {
-	list(alpha = 5,
-	     beta_inv = exp(mean(ln_dat_esc, na.rm = TRUE)),
-	     pi_tau = 10,
-	     pi_eta = rep(1,AA),
-	     pi_vec = matrix(c(0.01,0.35,0.47,0.15,0.01,0.01),
-	                     n_yrs-age_min+n_fore, AA, 
-	                     byrow = TRUE),
-	     Rec_mu = log(1000),
-	     Rec_sig = 0.1,
-	     tot_ln_Rec = rep(log(1000), n_yrs - age_min + n_fore),
-	     innov_1 = 0,
-	     phi = 0.5)
-}
-
 ## function to create Stan inits
 init_Stan <- function() 
 {
@@ -646,18 +630,10 @@ init_Stan <- function()
 ### Ricker
 
 ```{r fit_Ricker_base, message = FALSE, warning = FALSE, cache = TRUE}
-## params/states to return
-par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
-              "beta",
-              "Sp","Rec","tot_ln_Rec","ln_RS",
-              "pi_eta","pi_tau",
-              "sigma_r","sigma_s","res_ln_Rec",
-              "lp_age","lp_esc")
-
 ## params/states for Stan to return
 par_Stan <- c("log_a","b","K","pp","sigma_proc","sigma_obs","R_tot","Rec","spawners","mu_p","prec_p")
 
-# fit the model in Stan & store results
+## fit the model in Stan & store results
 stan.sksh <- stan(file = file.path(standir, "IPM_RK_AR.stan"),
                   data = dat_Stan, 
                   init = init_Stan, 
@@ -689,26 +665,24 @@ t(round(autocorr.diag(mod_fits[[1]][,par_conv],
 show(stan.sksh)
 
 # plot summary of Stan fit
-plot(stan.sksh)
+#plot(stan.sksh)
 
 # HMC sampler stats: all chains combined
-summary(do.call(rbind, args = get_sampler_params(stan.sksh, inc_warmup = FALSE)), digits = 2)
+#summary(do.call(rbind, args = get_sampler_params(stan.sksh, inc_warmup = FALSE)), digits = 2)
 
 # HMC sampler stats: each chain separately
-lapply(get_sampler_params(stan.sksh, inc_warmup = FALSE), summary, digits = 2)
+#lapply(get_sampler_params(stan.sksh, inc_warmup = FALSE), summary, digits = 2)
 
 # number of post-sampler divergent transitions
-count_divergences(stan.sksh)
+#count_divergences(stan.sksh)
 
 #hist_treedepth(stan.sksh)
 
 
-mod.list <- As.mcmc.list(stan.sksh)
+#mod.list <- As.mcmc.list(stan.sksh)
+```
 
-
-
-
-
+```{r, eval=FALSE}
 Rec <- extract(stan.sksh, pars = "Rec", permuted = TRUE, inc_warmup = TRUE)$Rec
 R_tot <- unlist2(extract(stan.sksh, pars = "R_tot", permuted = TRUE, inc_warmup = TRUE))
 pp <- extract(stan.sksh, pars = "pp", permuted = TRUE, inc_warmup = TRUE)$Rec
@@ -735,6 +709,7 @@ traceplot(stan.sksh, pars=c("sigma_proc","sigma_obs"))
 #traceplot(stan.sksh, pars=colnames(m2)[grep("Rec",colnames(m2))])
 
 get_posterior_mean(stan.sksh, par=c("K","log_a","sigma_proc","sigma_obs"))
+
 
 ```
 
