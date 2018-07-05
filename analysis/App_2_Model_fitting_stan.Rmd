@@ -158,7 +158,7 @@ Next we specify the names of three necessary data files containing the following
 fn_esc <- "skagit_sthd_esc.csv"
 
 ## 2. file with age comp data
-## [n_yrs x (1+A)]; 1st col is calendar yr
+## [n_yrs x (1+AA)]; 1st col is calendar yr
 fn_age <- "skagit_sthd_age.csv"
 
 ## 3. file with harvest data
@@ -178,6 +178,8 @@ dat_yrs <- dat_esc$year
 n_yrs <- length(dat_yrs)
 ## log of escapement
 ln_dat_esc <- c(log(dat_esc$escapement),rep(NA,n_fore))
+## years with missing data
+yr_NA_esc <- is.na(dat_esc)
 ```
 
 Next the age composition data:
@@ -188,21 +190,21 @@ dat_age <- read_csv(file.path(datadir, fn_age))
 ## drop year col & first (age_min + age_skip) rows
 dat_age <- dat_age[-(1:(age_min+age_skip)),-1]
 ## num of age classes
-A <- age_max - age_min + 1
+AA <- age_max - age_min + 1
 ## add row(s) of NA's for forecast years
 if(n_fore > 0) {
   dat_age <- rbind(dat_age,
-                   matrix(0, n_fore, A,
+                   matrix(0, n_fore, AA,
                           dimnames = list(n_yrs+seq(n_fore),colnames(dat_age))))
 }
 ## total num of age obs by cal yr
 dat_age[,"sum"] <- apply(dat_age, 1, sum)
 ## row indices for any years with no obs age comp
-idx_NA_yrs <- which(dat_age$sum<A, TRUE)
+idx_NA_yrs <- which(dat_age$sum<AA, TRUE)
 ## replace 0's in yrs w/o any obs with NA's
-dat_age[idx_NA_yrs,(1:A)] <- NA
-## change total in yrs w/o any obs from 0 to A to help dmulti()
-dat_age[idx_NA_yrs,"sum"] <- A
+dat_age[idx_NA_yrs,(1:AA)] <- NA
+## change total in yrs w/o any obs from 0 to AA to help dmulti()
+dat_age[idx_NA_yrs,"sum"] <- AA
 ## convert class
 dat_age <- as.matrix(dat_age)
 ```
@@ -258,7 +260,7 @@ functions {
 
 data {
   # number of years of spawner observations
-  int<lower=1> TT;                       
+  int<lower=1> n_yrs;                       
   # number of adult age classes
   int<lower=1> AA;                       
   # minimum adult age
@@ -272,15 +274,15 @@ data {
   # number of missing recruits to impute
   int<lower=1> n_rec_missing;
   # number of years with missing spawner abundance obs
-  int<lower=0,upper=TT> n_S_NA;          
+  int<lower=0,upper=n_yrs> n_S_NA;          
   # rows with missing spawner abundance obs
-  int<lower=1,upper=TT> which_S_NA[max(n_S_NA,1)]; 
+  int<lower=1,upper=n_yrs> which_S_NA[max(n_S_NA,1)]; 
   # observed annual total spawner abundance (not density)
-  vector<lower=0>[TT] dat_esc;
+  vector<lower=0>[n_yrs] dat_esc;
   # observed annual spawner age distributions
-  matrix<lower=0>[TT-(age_min+age_skip),AA] dat_age;
+  matrix<lower=0>[n_yrs-(age_min+age_skip),AA] dat_age;
   # total catch of adults (no harvest on jacks)
-  vector[TT+n_fore] dat_harv;                         
+  vector[n_yrs+n_fore] dat_harv;                         
 }
 
 parameters {
@@ -297,13 +299,13 @@ parameters {
   # process error precision of age distribution by cohort
   real<lower=1,upper=50> prec_p;          
   # age distributions by cohort (i.e., brood year)
-  simplex[AA] pp[TT-age_min+n_fore];                    
+  simplex[AA] pp[n_yrs-age_min+n_fore];                    
   # true total spawner abundance in years 1:(age_min+age_skip)
   vector<lower=0>[age_min+age_skip] S_tot_init;       
   # unknown (missing) spawner abundance obs
   vector<lower=0>[max(n_S_NA,1)] dat_esc_NA;    
   # true recruit abundance by brood year
-  vector<lower=0>[TT-age_min+n_fore] R_tot;           
+  vector<lower=0>[n_yrs-age_min+n_fore] R_tot;           
   # true recruits for early missing broods
   vector<lower=0>[n_rec_missing] R_early;           
 }
@@ -313,17 +315,17 @@ transformed parameters {
   # carrying capacity
   real<lower=0> K;                     
   # true total spawner abundance
-  vector<lower=0>[TT+n_fore] spawners;           
+  vector<lower=0>[n_yrs+n_fore] spawners;           
   # true total run size
-  vector<lower=0>[TT+n_fore] tot_run;           
+  vector<lower=0>[n_yrs+n_fore] tot_run;           
   # age distribution for calendar year returns
-  matrix[TT-(age_min+age_skip),AA] age_props;                      
+  matrix[n_yrs-(age_min+age_skip),AA] age_props;                      
   # expected recruit abundance (not density) by brood year
-  vector<lower=0>[TT-age_min+n_fore] R_tot_hat;
+  vector<lower=0>[n_yrs-age_min+n_fore] R_tot_hat;
   # temp variable: true spawners by age
   vector<lower=0>[AA] run;
   # recruits by age
-  vector<lower=0>[AA] Rec[TT-age_min+n_fore];            
+  vector<lower=0>[AA] Rec[n_yrs-age_min+n_fore];            
 
   if(log_a>0)
   {
@@ -339,7 +341,7 @@ transformed parameters {
   int cnt;
   cnt <- 0;                     
   
-  for(t in 1:(TT+n_fore))
+  for(t in 1:(n_yrs+n_fore))
   {
     if(t <= age_min+age_skip)
     # 1: early years with no projected recruits
@@ -374,7 +376,7 @@ transformed parameters {
     # total spawners in years with projected recruits
     tot_run[t] <- sum(run);
     # projected calendar-yr age dist
-    if(t <= TT)
+    if(t <= n_yrs)
     {
       for(a in 1:AA)
       {
@@ -385,7 +387,7 @@ transformed parameters {
     # estimated calendar-yr spawners 
       spawners[t] <- tot_run[t] - dat_harv[t];
     # get projected recruits by age
-    if(t <= (TT-age_min+n_fore))
+    if(t <= (n_yrs-age_min+n_fore))
     {
 	  # total recruits
 	  R_tot_hat[t] <- ricker(log_a, b, spawners[t]);
@@ -401,8 +403,8 @@ transformed parameters {
 
 model {
   # observed total spawner abundance with missing obs filled in
-  vector[TT] dat_esc_aug;     
-  vector[TT] l_spawners;
+  vector[n_yrs] dat_esc_aug;     
+  vector[n_yrs] l_spawners;
   
   # Priors
   S_tot_init ~ lognormal(0,10);
@@ -411,7 +413,7 @@ model {
   
   # Process models
   # hierarchical model of recruit age distn
-  for(t in 1:(TT-age_min+n_fore))
+  for(t in 1:(n_yrs-age_min+n_fore))
   {
     pp[t] ~ dirichlet(mu_p*prec_p);
   }
@@ -427,7 +429,7 @@ model {
       dat_esc_aug[which_S_NA[t]] <- dat_esc_NA[t];
     }
   }
-  for(t in 1:TT)
+  for(t in 1:n_yrs)
   {
   	l_spawners[t] <- spawners[t];
   }
@@ -443,7 +445,7 @@ model {
 
 ## Ricker with all covars & AR(1)
 
-```{r JAGS_RK_cov_AR}
+```{r JAGS_RK_cov_AR, eval=FALSE}
 cat("
 
 
@@ -452,7 +454,7 @@ cat("
 
 ## Beverton-Holt with AR(1)
 
-```{r JAGS_BH_AR}
+```{r JAGS_BH_AR, eval=FALSE}
 cat("
 
 
@@ -461,7 +463,7 @@ cat("
 
 ## Beverton-Holt with all covars & AR(1)
 
-```{r JAGS_BH_cov_AR}
+```{r JAGS_BH_cov_AR, eval=FALSE}
 cat("
 
 
@@ -484,7 +486,7 @@ dat_esc <- read.csv(file_esc)
 dat_yrs <- dat_esc$year
 
 # number of years of data
-TT <- length(dat_yrs)
+n_yrs <- length(dat_yrs)
 
 # get first & last years
 yr.first <- min(dat_yrs)
@@ -492,7 +494,6 @@ yr.last <- max(dat_yrs)
 
 # row indices for any years with no obs age comp
 dat_esc <- dat_esc[,"escapement"]
-yr_NA_esc <- is.na(dat_esc)
 
 # age comp data
 dat_age <- read.csv(file_age)
@@ -516,7 +517,7 @@ dat_harv <- read.csv(file_harv)
 
 # drop year col & first age_max rows
 dat_harv <- c(dat_harv[,-1],rep(0,n_fore))
-#dat_harv <- rep(0,TT+n_fore)
+#dat_harv <- rep(0,n_yrs+n_fore)
 
 # covariate(s)
 dat_cov <- read.csv(file_cov)
@@ -541,7 +542,7 @@ Before fitting the model in JAGS, we need to specify:
 dat_jags <- list(dat_age = dat_age,
                  ln_dat_esc = ln_dat_esc,
                  dat_harv = dat_harv,
-                 A = A,
+                 AA = AA,
                  age_min = age_min,
                  age_max = age_max,
                  age_skip = age_skip,
@@ -550,7 +551,7 @@ dat_jags <- list(dat_age = dat_age,
 
 ## data list for Stan
 dat_Stan <- list(
-  TT = as.integer(TT),
+  n_yrs = as.integer(n_yrs),
   AA = as.integer(AA),
   age_min = as.integer(age_min),
   age_max = as.integer(age_max),
@@ -599,9 +600,9 @@ init_vals_AR <- function() {
 	list(alpha = 5,
 	     beta_inv = exp(mean(ln_dat_esc, na.rm = TRUE)),
 	     pi_tau = 10,
-	     pi_eta = rep(1,A),
+	     pi_eta = rep(1,AA),
 	     pi_vec = matrix(c(0.01,0.35,0.47,0.15,0.01,0.01),
-	                     n_yrs-age_min+n_fore, A, 
+	                     n_yrs-age_min+n_fore, AA, 
 	                     byrow = TRUE),
 	     Rec_mu = log(1000),
 	     Rec_sig = 0.1,
@@ -610,10 +611,7 @@ init_vals_AR <- function() {
 	     phi = 0.5)
 }
 
-# params/states for Stan to return
-par_Stan <- c("log_a","b","K","pp","sigma_proc","sigma_obs","R_tot","Rec","spawners","mu_p","prec_p")
-
-# function to create Stan inits
+## function to create Stan inits
 init_Stan <- function() 
 {
   if(exists("dat_Stan")) 
@@ -623,12 +621,12 @@ init_Stan <- function()
     S_tot_obs_noNA <- dat_esc
     dat_esc[which_S_NA] <- NA
   }
-  RR <- matrix(NA, TT-age_min+n_fore, AA)
+  RR <- matrix(NA, n_yrs-age_min+n_fore, AA)
   age_mean <- apply(dat_age,2,sum)/sum(apply(dat_age,2,sum))
-  for(tt in 1:(TT-age_min+n_fore)) {
+  for(tt in 1:(n_yrs-age_min+n_fore)) {
     RR[tt,] <- (dat_esc[tt] + dat_harv[tt])*age_mean
     }
-  R_tot <- rpois(TT-age_min+n_fore,1.5e4)
+  R_tot <- rpois(n_yrs-age_min+n_fore,1.5e4)
   mu_p <- colSums(dat_age)/sum(dat_age)
   return(list(log_a = runif(1,1,3),
   			  b = 1/rpois(1,median(dat_esc[-which_S_NA])),
@@ -636,7 +634,7 @@ init_Stan <- function()
   			  sigma_obs = runif(1,0.1,0.5), 
               mu_p = mu_p,
               prec_p = runif(1,1,10),
-              pp = matrix(mu_p,TT-age_min+n_fore,AA,byrow=TRUE),
+              pp = matrix(mu_p,n_yrs-age_min+n_fore,AA,byrow=TRUE),
               S_tot_init = rep(max(S_tot_obs_noNA), age_min+age_skip),
               dat_esc_NA = array(rep(mean(dat_esc[-which_S_NA]), max(n_S_NA, 1)), dim=max(n_S_NA, 1)),
               R_tot = R_tot,
@@ -655,8 +653,9 @@ par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
               "pi_eta","pi_tau",
               "sigma_r","sigma_s","res_ln_Rec",
               "lp_age","lp_esc")
-## fit model
-mod_fits[[1]] <- fit_jags("IPM_RK_AR.txt", dat_jags, par_jags, init_vals_AR, mcmc_ctrl)
+
+## params/states for Stan to return
+par_Stan <- c("log_a","b","K","pp","sigma_proc","sigma_obs","R_tot","Rec","spawners","mu_p","prec_p")
 
 # fit the model in Stan & store results
 stan.sksh <- stan(file = "Skagit_steelhead_SSM.stan",
@@ -664,13 +663,13 @@ stan.sksh <- stan(file = "Skagit_steelhead_SSM.stan",
                   init = init_Stan, 
                   pars = par_Stan,
                   control=list(adapt_delta=0.95, max_treedepth=11),
-                  chains = 4, iter = 11000, warmup = 1000, thin = 40, cores = 4)
+                  chains = 4, iter = 5000, warmup = 1000, thin = 10, cores = 4)
 ```
 
 #### Convergence checks
 
 ```{r diag_Ricker, eval=FALSE}
-par_conv <- c("alpha","beta","sigma_r","sigma_s","pi_tau",paste0("pi_eta[",seq(A-1),"]"))
+par_conv <- c("alpha","beta","sigma_r","sigma_s","pi_tau",paste0("pi_eta[",seq(AA-1),"]"))
 
 ## Gelman-Rubin
 gelman.diag(mod_fits[[1]][,par_conv])
@@ -718,13 +717,13 @@ pp <- extract(stan.sksh, pars = "pp", permuted = TRUE, inc_warmup = TRUE)$Rec
 
 
 m1 <- as.array(stan.sksh)
-dev.new()
+#dev.new()
 par(mfrow=c(4,1), mai=c(0.6,0.6,0.1,0.1))
 apply(m1[,,"log_a"],2,acf)
 
 
 m2 <- as.matrix(stan.sksh)
-dev.new()
+#dev.new()
 pairs(stan.sksh, pars=c("b","log_a","K"))
 
 pairs(stan.sksh, pars=c("mu_p","prec_p"))
