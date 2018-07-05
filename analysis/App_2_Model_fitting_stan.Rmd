@@ -247,6 +247,196 @@ Now we can specify the various models in JAGS. We fit a total of 4 different mod
 ```{r JAGS_RK_AR}
 cat("
 
+functions {
+  # spawner-recruit functions
+  real ricker(real log_a, real b, real S) {
+    real R;
+    R <- S*exp(log_a-b*S);
+    return(R);
+  }
+}
+
+data {
+  # number of years of spawner observations
+  int<lower=1> TT;                       
+  # number of adult age classes
+  int<lower=1> AA;                       
+  # minimum adult age
+  int<lower=1> age_min;          
+  # maximum adult age
+  int<lower=age_min> age_max;
+  # early years to skip
+  int<lower=0> age_skip;
+  # number of years to forecast
+  int<lower=0> n_fore;          
+  # number of missing recruits to impute
+  int<lower=1> n_rec_missing;
+  # number of years with missing spawner abundance obs
+  int<lower=0,upper=TT> n_S_NA;          
+  # rows with missing spawner abundance obs
+  int<lower=1,upper=TT> which_S_NA[max(n_S_NA,1)]; 
+  # observed annual total spawner abundance (not density)
+  vector<lower=0>[TT] dat_esc;
+  # observed annual spawner age distributions
+  matrix<lower=0>[TT-(age_min+age_skip),AA] dat_age;
+  # total catch of adults (no harvest on jacks)
+  vector[TT+n_fore] dat_harv;                         
+}
+
+parameters {
+  # log intrinsic productivity (units: R/S)
+  real<lower=-1,upper=5> log_a;
+  # asymptotic recruitment (units: S)
+  real<lower=1e-6,upper=5e-3> b;       
+  # process error SD
+  real<lower=1e-4,upper=3> sigma_proc;
+  # observation error SD
+  real<lower=1e-4,upper=3> sigma_obs;    
+  # hyper-mean age distribution by cohort
+  simplex[AA] mu_p;                     
+  # process error precision of age distribution by cohort
+  real<lower=1,upper=50> prec_p;          
+  # age distributions by cohort (i.e., brood year)
+  simplex[AA] pp[TT-age_min+n_fore];                    
+  # true total spawner abundance in years 1:(age_min+age_skip)
+  vector<lower=0>[age_min+age_skip] S_tot_init;       
+  # unknown (missing) spawner abundance obs
+  vector<lower=0>[max(n_S_NA,1)] dat_esc_NA;    
+  # true recruit abundance by brood year
+  vector<lower=0>[TT-age_min+n_fore] R_tot;           
+  # true recruits for early missing broods
+  vector<lower=0>[n_rec_missing] R_early;           
+}
+
+
+transformed parameters {
+  # carrying capacity
+  real<lower=0> K;                     
+  # true total spawner abundance
+  vector<lower=0>[TT+n_fore] spawners;           
+  # true total run size
+  vector<lower=0>[TT+n_fore] tot_run;           
+  # age distribution for calendar year returns
+  matrix[TT-(age_min+age_skip),AA] age_props;                      
+  # expected recruit abundance (not density) by brood year
+  vector<lower=0>[TT-age_min+n_fore] R_tot_hat;
+  # temp variable: true spawners by age
+  vector<lower=0>[AA] run;
+  # recruits by age
+  vector<lower=0>[AA] Rec[TT-age_min+n_fore];            
+
+  if(log_a>0)
+  {
+  	K <- log_a/b;
+  }
+  else
+  {
+  	K <- 0;
+  }
+
+  {
+  # init dummy counter
+  int cnt;
+  cnt <- 0;                     
+  
+  for(t in 1:(TT+n_fore))
+  {
+    if(t <= age_min+age_skip)
+    # 1: early years with no projected recruits
+    {
+      tot_run[t] <- S_tot_init[t];
+    }
+    else
+    {
+      if(t <= age_max)
+      # 2: middle years with incomplete recruits
+      {
+	    # modeled recruits
+	    for(a in 1:(t-age_min))
+	    {
+	      run[a] <- Rec[t-age_min,a];
+	    }
+	    # imputed recruits
+	    for(a in (t-age_min+1):AA)
+	    {
+	      cnt <- cnt + 1;
+	      run[a] <- R_early[cnt];
+	    }
+      }
+      else
+      # 3: later years with complete recruits 
+      {
+	    for(a in 1:AA)
+	    {
+	      run[a] <- Rec[t-age_min,a];
+	    }
+      }
+    # total spawners in years with projected recruits
+    tot_run[t] <- sum(run);
+    # projected calendar-yr age dist
+    if(t <= TT)
+    {
+      for(a in 1:AA)
+      {
+        age_props[t-age_min-age_skip,a] <- log(run[a]/tot_run[t]);
+      } 
+    }
+    }  # end else for late years
+    # estimated calendar-yr spawners 
+      spawners[t] <- tot_run[t] - dat_harv[t];
+    # get projected recruits by age
+    if(t <= (TT-age_min+n_fore))
+    {
+	  # total recruits
+	  R_tot_hat[t] <- ricker(log_a, b, spawners[t]);
+	  # brood-yr recruits by age
+	  Rec[t] <- R_tot[t] * pp[t];
+    }
+
+  }  # end loop over t
+
+  }  # end group for dummy counter
+
+}  # end transformed params
+
+model {
+  # observed total spawner abundance with missing obs filled in
+  vector[TT] dat_esc_aug;     
+  vector[TT] l_spawners;
+  
+  # Priors
+  S_tot_init ~ lognormal(0,10);
+  R_early ~ lognormal(0,10);
+  if(n_S_NA == 0) dat_esc_NA ~ lognormal(0,10);
+  
+  # Process models
+  # hierarchical model of recruit age distn
+  for(t in 1:(TT-age_min+n_fore))
+  {
+    pp[t] ~ dirichlet(mu_p*prec_p);
+  }
+  # total recruitment by brood year
+  R_tot ~ lognormal(log(R_tot_hat), sigma_proc);
+  
+  # Observation models
+  dat_esc_aug <- dat_esc;
+  if(n_S_NA > 0)
+  {
+    for(t in 1:n_S_NA)
+    {
+      dat_esc_aug[which_S_NA[t]] <- dat_esc_NA[t];
+    }
+  }
+  for(t in 1:TT)
+  {
+  	l_spawners[t] <- spawners[t];
+  }
+  # observed total spawners
+  dat_esc_aug ~ lognormal(log(l_spawners), sigma_obs);
+  # observed age distribution
+  increment_log_prob(sum(dat_age .* age_props));
+
+}
 
 ", file=file.path(jagsdir, "IPM_RK_AR.txt"))
 ```
@@ -280,6 +470,64 @@ cat("
 
 ***
 
+# initial Stan prep
+
+```{r}
+#----------
+# get data
+#----------
+
+# escapement
+dat_esc <- read.csv(file_esc)
+
+# years of data
+dat_yrs <- dat_esc$year
+
+# number of years of data
+TT <- length(dat_yrs)
+
+# get first & last years
+yr.first <- min(dat_yrs)
+yr.last <- max(dat_yrs)
+
+# row indices for any years with no obs age comp
+dat_esc <- dat_esc[,"escapement"]
+yr_NA_esc <- is.na(dat_esc)
+
+# age comp data
+dat_age <- read.csv(file_age)
+
+# drop year col & first age_min+age_skip rows
+dat_age <- dat_age[-(1:(age_min+age_skip)),-1]
+
+# num of age classes
+AA <- age_max-age_min+1
+
+# check that dims match
+if(AA!=dim(dat_age)[2]) {
+	stop("data file must have AA=(age_max-age_min+1) age categories")
+}
+
+# convert class
+dat_age <- as.matrix(dat_age)
+
+# harvest
+dat_harv <- read.csv(file_harv)
+
+# drop year col & first age_max rows
+dat_harv <- c(dat_harv[,-1],rep(0,n_fore))
+#dat_harv <- rep(0,TT+n_fore)
+
+# covariate(s)
+dat_cov <- read.csv(file_cov)
+
+# drop year col & first age_max rows
+dat_cov <- dat_cov[,cov_in]
+
+# z-score covariates
+dat_cov <- scale(dat_cov)
+```
+
 # Fitting the models
 
 Before fitting the model in JAGS, we need to specify:
@@ -299,6 +547,23 @@ dat_jags <- list(dat_age = dat_age,
                  age_skip = age_skip,
                  n_yrs = n_yrs,
                  n_fore = n_fore) 
+
+## data list for Stan
+dat_Stan <- list(
+  TT = as.integer(TT),
+  AA = as.integer(AA),
+  age_min = as.integer(age_min),
+  age_max = as.integer(age_max),
+  age_skip = as.integer(age_skip),
+  n_fore = as.integer(n_fore),
+  n_rec_missing = as.integer(((age_max-age_min-age_skip+1)^2 - (age_max-age_min-age_skip+1))/2),
+  which_S_NA = which(yr_NA_esc),
+  n_S_NA = as.integer(length(which(yr_NA_esc))),
+  dat_esc = replace(dat_esc, is.na(dat_esc), 1),
+  dat_age = dat_age,
+  dat_harv = dat_harv
+)
+if(length(dat_Stan$which_S_NA)==0) { dat_Stan$which_S_NA <- 1 }
 
 ## 2. Model params/states for JAGS to return
 ##    These are specific to the process model,
@@ -344,6 +609,40 @@ init_vals_AR <- function() {
 	     innov_1 = 0,
 	     phi = 0.5)
 }
+
+# params/states for Stan to return
+par_Stan <- c("log_a","b","K","pp","sigma_proc","sigma_obs","R_tot","Rec","spawners","mu_p","prec_p")
+
+# function to create Stan inits
+init_Stan <- function() 
+{
+  if(exists("dat_Stan")) 
+    for(i in names(dat_Stan)) assign(i, dat_Stan[[i]])
+  if(n_S_NA > 0)
+  {
+    S_tot_obs_noNA <- dat_esc
+    dat_esc[which_S_NA] <- NA
+  }
+  RR <- matrix(NA, TT-age_min+n_fore, AA)
+  age_mean <- apply(dat_age,2,sum)/sum(apply(dat_age,2,sum))
+  for(tt in 1:(TT-age_min+n_fore)) {
+    RR[tt,] <- (dat_esc[tt] + dat_harv[tt])*age_mean
+    }
+  R_tot <- rpois(TT-age_min+n_fore,1.5e4)
+  mu_p <- colSums(dat_age)/sum(dat_age)
+  return(list(log_a = runif(1,1,3),
+  			  b = 1/rpois(1,median(dat_esc[-which_S_NA])),
+  			  sigma_proc = runif(1,0.1,0.5),
+  			  sigma_obs = runif(1,0.1,0.5), 
+              mu_p = mu_p,
+              prec_p = runif(1,1,10),
+              pp = matrix(mu_p,TT-age_min+n_fore,AA,byrow=TRUE),
+              S_tot_init = rep(max(S_tot_obs_noNA), age_min+age_skip),
+              dat_esc_NA = array(rep(mean(dat_esc[-which_S_NA]), max(n_S_NA, 1)), dim=max(n_S_NA, 1)),
+              R_tot = R_tot,
+              R_early = rpois(((age_max-age_min-age_skip+1)^2-(age_max-age_min-age_skip+1))/2,1000)
+              ))
+}
 ```
 
 ### Ricker
@@ -358,11 +657,19 @@ par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
               "lp_age","lp_esc")
 ## fit model
 mod_fits[[1]] <- fit_jags("IPM_RK_AR.txt", dat_jags, par_jags, init_vals_AR, mcmc_ctrl)
+
+# fit the model in Stan & store results
+stan.sksh <- stan(file = "Skagit_steelhead_SSM.stan",
+                  data = dat_Stan, 
+                  init = init_Stan, 
+                  pars = par_Stan,
+                  control=list(adapt_delta=0.95, max_treedepth=11),
+                  chains = 4, iter = 11000, warmup = 1000, thin = 40, cores = 4)
 ```
 
 #### Convergence checks
 
-```{r diag_Ricker}
+```{r diag_Ricker, eval=FALSE}
 par_conv <- c("alpha","beta","sigma_r","sigma_s","pi_tau",paste0("pi_eta[",seq(A-1),"]"))
 
 ## Gelman-Rubin
@@ -374,222 +681,61 @@ t(round(autocorr.diag(mod_fits[[1]][,par_conv],
                       relative=FALSE), 2))
 ```
 
-### Beverton-Holt
+```{r stan_diag}
+#------------------
+# Stan diagnostics
+#------------------
 
-```{r fit_BH_base, message = FALSE, warning = FALSE, cache = TRUE}
-## params/states to return
-par_jags <- c("alpha","E_BH_a","mu_BH_a",
-              "beta",
-              "Sp","Rec","tot_ln_Rec","ln_RS",
-              "pi_eta","pi_tau",
-              "sigma_r","sigma_s","res_ln_Rec",
-              "lp_age","lp_esc")
-## fit model
-mod_fits[[2]] <- fit_jags("IPM_BH_AR.txt", dat_jags, par_jags, init_vals_AR, mcmc_ctrl)
+# summary of Stan fit
+show(stan.sksh)
+
+# plot summary of Stan fit
+plot(stan.sksh)
+
+# HMC sampler stats: all chains combined
+summary(do.call(rbind, args = get_sampler_params(stan.sksh, inc_warmup = FALSE)), digits = 2)
+
+# HMC sampler stats: each chain separately
+lapply(get_sampler_params(stan.sksh, inc_warmup = FALSE), summary, digits = 2)
+
+# number of post-sampler divergent transitions
+count_divergences(stan.sksh)
+
+#hist_treedepth(stan.sksh)
+
+
+mod.list <- As.mcmc.list(stan.sksh)
+
+
+
+
+
+Rec <- extract(stan.sksh, pars = "Rec", permuted = TRUE, inc_warmup = TRUE)$Rec
+R_tot <- unlist2(extract(stan.sksh, pars = "R_tot", permuted = TRUE, inc_warmup = TRUE))
+pp <- extract(stan.sksh, pars = "pp", permuted = TRUE, inc_warmup = TRUE)$Rec
+
+
+
+
+m1 <- as.array(stan.sksh)
+dev.new()
+par(mfrow=c(4,1), mai=c(0.6,0.6,0.1,0.1))
+apply(m1[,,"log_a"],2,acf)
+
+
+m2 <- as.matrix(stan.sksh)
+dev.new()
+pairs(stan.sksh, pars=c("b","log_a","K"))
+
+pairs(stan.sksh, pars=c("mu_p","prec_p"))
+
+pairs(stan.sksh, pars=c("sigma_proc","sigma_obs"))
+
+traceplot(stan.sksh, pars=c("sigma_proc","sigma_obs"))
+
+#traceplot(stan.sksh, pars=colnames(m2)[grep("Rec",colnames(m2))])
+
+get_posterior_mean(stan.sksh, par=c("K","log_a","sigma_proc","sigma_obs"))
+
 ```
 
-#### Convergence checks
-
-```{r diag_BH}
-## Gelman-Rubin
-gelman.diag(mod_fits[[2]][,par_conv])
-
-## autocorrelation
-t(round(autocorr.diag(mod_fits[[2]][,par_conv],
-                      lags = seq(mcmc_ctrl$thin, 4*mcmc_ctrl$thin, mcmc_ctrl$thin),
-                      relative=FALSE), 2))
-```
-
-## Models with all covariates
-
-Now we fit the models that include covariates. Here is the `inits` function for `fit_jags()` and a specification of the covariates.
-
-```{r inits_cov}
-## function for inits
-init_vals_cov <- function() {
-	list(alpha = 5,
-	     beta_inv = exp(mean(ln_dat_esc, na.rm = TRUE)),
-	     gamma = rep(0, n_mods),
-	     pi_tau = 10,
-	     pi_eta = rep(1,A),
-	     pi_vec = matrix(c(0.01,0.35,0.47,0.15,0.01,0.01),
-	                     n_yrs-age_min+n_fore, A, 
-	                     byrow = TRUE),
-	     Rec_mu = log(1000),
-	     Rec_sig = 0.1,
-	     tot_ln_Rec = rep(log(1000), n_yrs - age_min + n_fore),
-	     # phi = 0.5,
-	     innov_1 = 0)
-}
-
-## set of multi-covariate models
-cset <- colnames(scl_cvrs)
-dat_jags$n_cov <- length(cset)
-dat_jags$mod_cvrs <- scl_cvrs[, cset]
-```
-
-## Ricker
-
-```{r fit_Ricker_cov, message = FALSE, warning = FALSE, cache = TRUE, eval=TRUE}
-## params/states to return
-par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
-              "beta",
-              "gamma",
-              "Sp","Rec","tot_ln_Rec","ln_RS",
-              "pi_eta","pi_tau",
-              "sigma_r","sigma_s","res_ln_Rec",
-              "lp_age","lp_esc")
-
-## Ricker with cov
-mod_fits[[3]] <- fit_jags("IPM_RK_cov_AR.txt", dat_jags, par_jags,
-                          init_vals_cov, mcmc_ctrl)
-```
-
-## Beverton-Holt
-
-```{r fit_BH_cov, message = FALSE, warning = FALSE, cache = TRUE, eval=TRUE}
-## params/states to return
-par_jags <- c("alpha","E_BH_a","ln_BH_a",
-              "beta",
-              "gamma",
-              "Sp","Rec","tot_ln_Rec","ln_RS",
-              "pi_eta","pi_tau",
-              "sigma_r","sigma_s","res_ln_Rec",
-              "lp_age","lp_esc")
-
-## B-H with cov
-mod_fits[[4]] <- fit_jags("IPM_BH_cov_AR.txt", dat_jags, par_jags,
-                          init_vals_cov, mcmc_ctrl)
-```
-
-```{r stop_timer, include = FALSE}
-## stop timer
-run_time_in_min <- round(((proc.time()-timer_start)/60)["elapsed"], 1)
-cat(run_time_in_min, file = "run_time_in_min.txt")
-```
-
-# Effect sizes
-
-```{r tbl_effect_sizes}
-## table of effect sizes 
-cc_smry <- data.frame(covariate = cset,
-                      R_lo = rep(NA, n_mods),
-                      R_med = rep(NA, n_mods),
-                      R_up = rep(NA, n_mods),
-                      BH_lo = rep(NA, n_mods),
-                      BH_med = rep(NA, n_mods),
-                      BH_up = rep(NA, n_mods))
-## Ricker
-RR <- do.call(rbind, mod_fits[[3]])
-cc_smry[,2:4] <- t(apply(RR[,grep("gamma", colnames(RR))], 2, quantile, c(0.025,0.5,0.975)))
-## B-H
-BH <- do.call(rbind, mod_fits[[4]])
-cc_smry[,5:7] <- t(apply(BH[,grep("gamma", colnames(BH))], 2, quantile, c(0.025,0.5,0.975)))
-## print table
-cc_smry[,-1] <- round(cc_smry[,-1], 2)
-cc_smry
-```
-
-# Model selection
-
-Via `loo()` and `compare()` with full table of results.
-
-```{r get_LOOIC_c, fig.height=8, fig.width=6, warning=FALSE, cache=FALSE}
-par(mfrow=c(4,1), mai=c(0.6,0.6,0.1,0.1), omi=rep(0,4))
-LOO_both <- LOO_age <- LOO_esc <- vector("list", n_mods)
-## extract log densities from JAGS objects
-for(i in 1:n_mods) {
-  ## convert mcmc.list to matrix
-  tmp_lp <- as.matrix(mod_fits[[i]])
-  ## extract pointwise likelihoods
-  tmp_lp <- tmp_lp[,grepl("lp_", colnames(tmp_lp))]
-  ## if numerical underflows, convert -Inf to 5% less than min(likelihood)
-  if(any(is.infinite(tmp_lp))) {
-    tmp_lp[is.infinite(tmp_lp)] <- NA
-    tmp_min <- min(tmp_lp, na.rm = TRUE)
-    tmp_lp[is.na(tmp_lp)] <- tmp_min * 1.05
-  }
-  ## calculate LOOIC
-  LOO_both[[i]] <- loo(tmp_lp)
-  plot(LOO_both[[i]], main="")
-  LOO_age[[i]] <- loo(tmp_lp[,grep("age",colnames(tmp_lp))])
-  LOO_esc[[i]] <- loo(tmp_lp[,grep("esc",colnames(tmp_lp))])
-}
-
-## LOOIC for all data
-tbl_LOO_both <- round(compare(x = LOO_both), 2)
-rownames(tbl_LOO_both) <- sub("model", "", rownames(tbl_LOO_both))
-tbl_LOO_both <- tbl_LOO_both[order(as.numeric(rownames(tbl_LOO_both))), ]
-tbl_LOO_both <- cbind(model = rep(c("Ricker","B-H"),2),
-                      covar = rep(c("No","Yes"),ea=2),
-                      as.data.frame(tbl_LOO_both))
-tbl_LOO_both[order(tbl_LOO_both[,"looic"]), ]
-
-## LOOIC for all data (pairwise)
-## `elpd_diff` will be pos (neg) if the expected predictive accuracy for the second (first) model is higher.
-## Ricker without vs with covariates
-compare(LOO_both[[1]], LOO_both[[3]])
-## BH without vs with covariates
-compare(LOO_both[[2]], LOO_both[[4]])
-## Ricker to BH (without covariates)
-compare(LOO_both[[1]], LOO_both[[2]])
-## Ricker to BH (with covariates)
-compare(LOO_both[[3]], LOO_both[[4]])
-
-## LOOIC for age data only
-tbl_LOO_age <- round(compare(x = LOO_age), 2)
-rownames(tbl_LOO_age) <- sub("model", "", rownames(tbl_LOO_age))
-tbl_LOO_age <- tbl_LOO_age[order(as.numeric(rownames(tbl_LOO_age))), ]
-tbl_LOO_age <- cbind(model = rep(c("Ricker","B-H"),2),
-                     covar = rep(c("No","Yes"),ea=2),
-                     as.data.frame(tbl_LOO_age))
-tbl_LOO_age[order(tbl_LOO_age[,"looic"]), ]
-
-## LOOIC for escapement data only
-tbl_LOO_esc <- round(compare(x = LOO_esc), 2)
-rownames(tbl_LOO_esc) <- sub("model", "", rownames(tbl_LOO_esc))
-tbl_LOO_esc <- tbl_LOO_esc[order(as.numeric(rownames(tbl_LOO_esc))), ]
-tbl_LOO_esc <- cbind(model = rep(c("Ricker","B-H"),2),
-                     covar = rep(c("No","Yes"),ea=2),
-                     as.data.frame(tbl_LOO_esc))
-tbl_LOO_esc[order(tbl_LOO_esc[,"looic"]), ]
-```
-
-## Distribution of pointwise likelihoods
-
-At the moment this is for the Beverton-Holt model with covariates.
-
-```{r lp_violins, fig.height=4, fig.width=7}
-## base plot
-tidy_lp <- tidyr::gather(data.frame(tmp_lp), key = time, value = lp)
-pp <- ggplot(tidy_lp, aes(x=time, y=lp)) +
-  labs(title = "", x = "Data element", y = "Pointwise likelihood") + 
-  theme(axis.text.x = element_blank(),
-        axis.ticks.x = element_blank())
-## violin plot
-p1 <- pp + geom_violin()
-p1
-```
-
-## Model diagnostics
-
-Here is a histogram of the Gelman & Rubin statistics $(R_{hat})$ for the estimated parameters. Recall that we set an upper threshold of `r Rhat_thresh`, so values larger than that deserve some additional inspection.
-
-```{r model_diagnostics, eval=TRUE}
-best_fit <- mod_fits[[4]]
-## params of interest
-par_conv <- c("alpha","beta",paste0("gamma[",seq(4),"]"),
-              "sigma_r","sigma_s","pi_tau",paste0("pi_eta[",seq(A-1),"]"))
-## Gelman-Rubin
-gelman.diag(best_fit[,par_conv])
-## Autocorrelation
-t(round(autocorr.diag(best_fit[,par_conv],
-                      lags = seq(mcmc_ctrl$thin, 4*mcmc_ctrl$thin, mcmc_ctrl$thin),
-                      relative=FALSE), 2))
-```
-
-These diagnostics look pretty good, so we'll save the output for this model.
-
-```{r save_model, eval=FALSE}
-save(best_fit, file = file.path(analdir, "best_fit.rda"))
-```
