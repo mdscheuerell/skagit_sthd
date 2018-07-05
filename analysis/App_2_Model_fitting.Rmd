@@ -963,8 +963,8 @@ init_vals_cov <- function() {
 	     Rec_mu = log(1000),
 	     Rec_sig = 0.1,
 	     tot_ln_Rec = rep(log(1000), n_yrs - age_min + n_fore),
-	     innov_1 = 0,
-	     phi = 0.5)
+	     # phi = 0.5,
+	     innov_1 = 0)
 }
 
 ## set of multi-covariate models
