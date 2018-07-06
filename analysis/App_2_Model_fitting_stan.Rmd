@@ -283,8 +283,12 @@ parameters {
   real<lower=0,upper=1> b;       
   // process error SD
   real<lower=1e-4,upper=3> sigma_proc;
+  // process error z-scores
+  vector[n_yrs-age_min+n_fore] proc_err_z;
   // observation error SD
-  real<lower=1e-4,upper=3> sigma_obs;    
+  real<lower=1e-4,upper=3> sigma_obs;
+  // AR(1) coef for log-productivity innovations
+  real<lower=-1,upper=1> phi;
   // hyper-mean age distribution by cohort
   simplex[AA] mu_p;                     
   // process error precision of age distribution by cohort
@@ -316,6 +320,8 @@ transformed parameters {
   vector<lower=0>[AA] run;
   // recruits by age
   vector<lower=0>[AA] Rec[n_yrs-age_min+n_fore];            
+  // process errors
+  vector[n_yrs-age_min+n_fore] proc_err;
   
   if(log_a>0) {
     K = log_a / b;
@@ -361,13 +367,21 @@ transformed parameters {
             age_props[t-age_min-age_skip,a] = log(run[a]/tot_run[t]);
           } 
         }
-      }  // end else for late years
+      }  // end else for middle & late years
       // estimated calendar-yr spawners
       spawners[t] = tot_run[t] - dat_harv[t];
       // get projected recruits by age
       if(t <= (n_yrs-age_min+n_fore)) {
+        // process errors are AR(1)
+        if(t == 1) {
+          proc_err[t] = sigma_proc * proc_err_z[t] / (1 - phi^2);
+        }
+        else {
+          proc_err[t] = phi * proc_err[t-1] + sigma_proc * proc_err_z[t];
+        }
         // total recruits
         R_tot_hat[t] = ricker(log_a, b, spawners[t]);
+        R_tot[t] = R_tot_hat[t] * exp(proc_err[t]);
         // brood-yr recruits by age
         Rec[t] = R_tot[t] * pp[t];
       }
@@ -395,7 +409,8 @@ model {
     pp[t] ~ dirichlet(mu_p*prec_p);
   }
   // total recruitment by brood year
-  R_tot ~ lognormal(log(R_tot_hat), sigma_proc);
+  // R_tot ~ lognormal(log(R_tot_hat), sigma_proc);
+  proc_err_z ~ normal(0,1);
   
   // Observation models
   dat_esc_aug = dat_esc;
