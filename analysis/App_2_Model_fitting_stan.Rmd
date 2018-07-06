@@ -285,10 +285,10 @@ parameters {
   real<lower=1e-4,upper=3> sigma_proc;
   // process error z-scores
   vector[n_yrs-age_min+n_fore] proc_err_z;
+  // AR(1) coef for proc errors
+  real<lower=-1,upper=1> phi;
   // observation error SD
   real<lower=1e-4,upper=3> sigma_obs;
-  // AR(1) coef for log-productivity innovations
-  real<lower=-1,upper=1> phi;
   // hyper-mean age distribution by cohort
   simplex[AA] mu_p;                     
   // process error precision of age distribution by cohort
@@ -299,8 +299,6 @@ parameters {
   vector<lower=0>[age_min+age_skip] S_tot_init;       
   // unknown (missing) spawner abundance obs
   vector<lower=0>[max(n_S_NA,1)] dat_esc_NA;    
-  // true recruit abundance by brood year
-  vector<lower=0>[n_yrs-age_min+n_fore] R_tot;           
   // true recruits for early missing broods
   vector<lower=0>[n_rec_missing] R_early;           
 }
@@ -316,6 +314,8 @@ transformed parameters {
   matrix[n_yrs-(age_min+age_skip),AA] age_props;                      
   // expected recruit abundance (not density) by brood year
   vector<lower=0>[n_yrs-age_min+n_fore] R_tot_hat;
+  // true recruit abundance by brood year
+  vector<lower=0>[n_yrs-age_min+n_fore] R_tot;           
   // temp variable: true spawners by age
   vector<lower=0>[AA] run;
   // recruits by age
@@ -374,7 +374,7 @@ transformed parameters {
       if(t <= (n_yrs-age_min+n_fore)) {
         // process errors are AR(1)
         if(t == 1) {
-          proc_err[t] = sigma_proc * proc_err_z[t] / (1 - phi^2);
+          proc_err[t] = sigma_proc * proc_err_z[t] / sqrt(1 - phi^2);
         }
         else {
           proc_err[t] = phi * proc_err[t-1] + sigma_proc * proc_err_z[t];
@@ -525,6 +525,8 @@ init_Stan <- function() {
     log_a = runif(1,0,1),
     b = 1/rpois(1,median(dat_esc[-which_S_NA])),
     sigma_proc = runif(1,0.1,0.5),
+    proc_err_z = rnorm(n_yrs-age_min+n_fore),
+    phi = runif(1),
     sigma_obs = runif(1,0.1,0.5), 
     mu_p = mu_p,
     prec_p = runif(1,0.1,1),
