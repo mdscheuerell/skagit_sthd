@@ -286,7 +286,7 @@ parameters {
   // process error z-scores
   vector[n_yrs-age_min+n_fore] proc_err_z;
   // AR(1) coef for proc errors
-  real<lower=-1,upper=1> phi;
+  real<lower=0,upper=1> phi;
   // observation error SD
   real<lower=1e-4,upper=3> sigma_obs;
   // hyper-mean age distribution by cohort
@@ -312,16 +312,16 @@ transformed parameters {
   vector<lower=0>[n_yrs+n_fore] tot_run;           
   // age distribution for calendar year returns
   matrix[n_yrs-(age_min+age_skip),AA] age_props;                      
-  // expected recruit abundance (not density) by brood year
+  // expected recruits by brood year
   vector<lower=0>[n_yrs-age_min+n_fore] R_tot_hat;
-  // true recruit abundance by brood year
+  // true recruits by brood year
   vector<lower=0>[n_yrs-age_min+n_fore] R_tot;           
+  // process errors
+  vector[n_yrs-age_min+n_fore] proc_err;
   // temp variable: true spawners by age
   vector<lower=0>[AA] run;
   // recruits by age
   vector<lower=0>[AA] Rec[n_yrs-age_min+n_fore];            
-  // process errors
-  vector[n_yrs-age_min+n_fore] proc_err;
   
   if(log_a>0) {
     K = log_a / b;
@@ -397,6 +397,9 @@ model {
   vector[n_yrs] dat_esc_aug;     
 
   // Priors
+  log_a ~ normal(0,5);
+  b ~ normal(0,1);
+  phi ~ normal(0,5);
   S_tot_init ~ lognormal(0,10);
   R_early ~ lognormal(0,10);
   if(n_S_NA == 0) {
@@ -520,16 +523,16 @@ init_Stan <- function() {
     dat_esc[which_S_NA] <- NA
   }
   mu_p <- colSums(dat_age)/sum(dat_age)
-  R_tot <- rpois(n_yrs-age_min+n_fore,2*median(dat_esc[-which_S_NA]))
+  R_tot <- rpois(n_yrs-age_min+n_fore,median(dat_esc[-which_S_NA]))
   inits <- list(
-    log_a = runif(1,0,1),
+    log_a = runif(1,1,3),
     b = 1/rpois(1,median(dat_esc[-which_S_NA])),
     sigma_proc = runif(1,0.1,0.5),
     proc_err_z = rnorm(n_yrs-age_min+n_fore),
-    phi = runif(1),
+    phi = runif(1,0,0.9),
     sigma_obs = runif(1,0.1,0.5), 
     mu_p = mu_p,
-    prec_p = runif(1,0.1,1),
+    prec_p = runif(1,1,2),
     pp = matrix(mu_p,n_yrs-age_min+n_fore,AA,byrow=TRUE),
     S_tot_init = rep(max(S_tot_obs_noNA), age_min+age_skip),
     dat_esc_NA = array(rep(mean(dat_esc[-which_S_NA]), max(n_S_NA, 1)), dim=max(n_S_NA, 1)),
