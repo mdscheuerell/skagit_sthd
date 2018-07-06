@@ -26,6 +26,8 @@ set.seed(123)
 if(file.exists("cnt_time.txt")) {
   file.remove("cnt_time.txt")
 }
+## setup parallel processing
+options(mc.cores = parallel::detectCores())
 ```
 
 # Requirements
@@ -72,11 +74,8 @@ if(!require("ggplot2")) {
 datadir <- here("data")
 standir <- here("stan")
 analdir <- here("analysis")
-## Stan options
-## write to disk
+## write Stan files to disk
 rstan_options(auto_write = TRUE)
-## setup parallel processing
-options(mc.cores = parallel::detectCores())
 ```
 
 We also need a couple of helper functions.
@@ -500,18 +499,11 @@ mod_fits <- vector("list", n_mods)
 
 ## function to create Stan inits
 init_Stan <- function() {
-  # if(exists("dat_Stan")) {
-    for(i in names(dat_Stan)) assign(i, dat_Stan[[i]])
-    # }
+  for(i in names(dat_Stan)) assign(i, dat_Stan[[i]])
   if(n_S_NA > 0) {
     S_tot_obs_noNA <- dat_esc
     dat_esc[which_S_NA] <- NA
   }
-  # RR <- matrix(NA, n_yrs-age_min+n_fore, AA)
-  # age_mean <- apply(dat_age,2,sum)/sum(apply(dat_age,2,sum))
-  # for(tt in 1:(n_yrs-age_min+n_fore)) {
-  #   RR[tt,] <- (dat_esc[tt] + dat_harv[tt])*age_mean
-  #   }
   mu_p <- colSums(dat_age)/sum(dat_age)
   R_tot <- rpois(n_yrs-age_min+n_fore,2*median(dat_esc[-which_S_NA]))
   inits <- list(
@@ -545,8 +537,8 @@ mod_fits[[1]] <- stan(file = file.path(standir, "IPM_RK_AR.stan"),
                       data = dat_Stan, 
                       init = init_Stan, 
                       pars = par_Stan,
-                      control=list(adapt_delta=0.95, max_treedepth=11),
-                      chains = 4, iter = 2000, warmup = 1000, thin = 10)
+                      control=list(adapt_delta=0.99, max_treedepth=13),
+                      chains = 4, iter = 3000, warmup = 1000, thin = 10)
 ```
 
 ```{r save_model, eval=TRUE}
