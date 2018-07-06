@@ -26,11 +26,6 @@ set.seed(123)
 if(file.exists("cnt_time.txt")) {
   file.remove("cnt_time.txt")
 }
-## Stan options
-## write to disk
-rstan_options(auto_write = TRUE)
-## setup parallel processing
-options(mc.cores = parallel::detectCores())
 ```
 
 # Requirements
@@ -77,6 +72,11 @@ if(!require("ggplot2")) {
 datadir <- here("data")
 standir <- here("stan")
 analdir <- here("analysis")
+## Stan options
+## write to disk
+rstan_options(auto_write = TRUE)
+## setup parallel processing
+options(mc.cores = parallel::detectCores())
 ```
 
 We also need a couple of helper functions.
@@ -569,9 +569,15 @@ mod_fits[[1]] <- stan(file = file.path(standir, "IPM_RK_AR.stan"),
                   data = dat_Stan, 
                   init = init_Stan, 
                   pars = par_Stan,
-                  control=list(adapt_delta=0.95, max_treedepth=11),
-                  chains = 4, iter = 5000, warmup = 1000, thin = 10, cores = 4)
+                  control=list(adapt_delta=0.97, max_treedepth=12),
+                  chains = 4, iter = 6000, warmup = 1000, thin = 10)
 ```
+
+```{r save_model, eval=TRUE}
+best_fit <- mod_fits[[1]]
+save(best_fit, file = file.path(analdir, "best_fit.rda"))
+```
+
 
 #### Convergence checks
 
@@ -618,14 +624,10 @@ Rec <- extract(mod_fits[[1]], pars = "Rec", permuted = TRUE, inc_warmup = TRUE)$
 R_tot <- unlist2(extract(mod_fits[[1]], pars = "R_tot", permuted = TRUE, inc_warmup = TRUE))
 pp <- extract(mod_fits[[1]], pars = "pp", permuted = TRUE, inc_warmup = TRUE)$Rec
 
-
-
-
 m1 <- as.array(mod_fits[[1]])
 #dev.new()
 par(mfrow=c(4,1), mai=c(0.6,0.6,0.1,0.1))
 apply(m1[,,"log_a"],2,acf)
-
 
 m2 <- as.matrix(mod_fits[[1]])
 #dev.new()
@@ -640,7 +642,6 @@ traceplot(mod_fits[[1]], pars=c("sigma_proc","sigma_obs"))
 #traceplot(mod_fits[[1]], pars=colnames(m2)[grep("Rec",colnames(m2))])
 
 get_posterior_mean(mod_fits[[1]], par=c("K","log_a","sigma_proc","sigma_obs"))
-
 
 ```
 
