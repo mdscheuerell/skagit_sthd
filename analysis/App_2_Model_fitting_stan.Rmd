@@ -26,10 +26,15 @@ set.seed(123)
 if(file.exists("cnt_time.txt")) {
   file.remove("cnt_time.txt")
 }
+## Stan options
+## write to disk
+rstan_options(auto_write = TRUE)
+## setup parallel processing
+options(mc.cores = parallel::detectCores())
 ```
 
 # Requirements
-All analyses require the [R software](https://cran.r-project.org/) (v3.4.3) for data retrieval, data processing, and summarizing model results, and the [JAGS software](http://mcmc-jags.sourceforge.net/) (v4.2.0) for Markov chain Monte Carlo (MCMC) simulation. Please note that some of the R code below may not work with older versions of JAGS due to some changes in the ways that arrays are handled.
+All analyses require the [R software](https://cran.r-project.org/) (v3.4.3) for data retrieval, data processing, and summarizing model results, and the [Stan software](http://mc-stan.org/) (v2.17) for Hamiltonian Monte Carlo (HMC) simulation.
 
 We also need a few packages that are not included with the base installation of R, so we begin by installing them (if necessary) and then loading them.
 
@@ -71,11 +76,6 @@ if(!require("ggplot2")) {
 datadir <- here("data")
 standir <- here("stan")
 analdir <- here("analysis")
-## Stan options
-## write to disk
-rstan_options(auto_write = TRUE)
-## setup parallel processing
-options(mc.cores = parallel::detectCores())
 ```
 
 We also need a couple of helper functions.
