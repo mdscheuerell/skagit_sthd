@@ -34,6 +34,7 @@ options(mc.cores = parallel::detectCores())
 ```
 
 # Requirements
+
 All analyses require the [R software](https://cran.r-project.org/) (v3.4.3) for data retrieval, data processing, and summarizing model results, and the [Stan software](http://mc-stan.org/) (v2.17) for Hamiltonian Monte Carlo (HMC) simulation.
 
 We also need a few packages that are not included with the base installation of R, so we begin by installing them (if necessary) and then loading them.
@@ -234,11 +235,11 @@ n_cov <- dim(scl_cvrs)[2]
 
 # Specifying models in Stan
 
-Now we can specify the various models in JAGS. We fit a total of 4 different models, which we outline below, based on the 2 different process models with and without and covariates.
+Now we can specify the various models in Stan. We fit a total of 4 different models, which we outline below, based on the 2 different process models with and without and covariates.
 
 ## Ricker with AR(1)
 
-```{r JAGS_RK_AR}
+```{r stan_RK_AR}
 cat("
 
 functions {
@@ -437,42 +438,42 @@ model {
 
 ## Ricker with all covars & AR(1)
 
-```{r JAGS_RK_cov_AR, eval=FALSE}
+```{r stan_RK_cov_AR, eval=FALSE}
 cat("
 
 
-", file=file.path(jagsdir, "IPM_RK_cov_AR.txt"))
+", file=file.path(standir, "IPM_RK_cov_AR.txt"))
 ```
 
 ## Beverton-Holt with AR(1)
 
-```{r JAGS_BH_AR, eval=FALSE}
+```{r stan_BH_AR, eval=FALSE}
 cat("
 
 
-", file=file.path(jagsdir, "IPM_BH_AR.txt"))
+", file=file.path(standir, "IPM_BH_AR.txt"))
 ```
 
 ## Beverton-Holt with all covars & AR(1)
 
-```{r JAGS_BH_cov_AR, eval=FALSE}
+```{r stan_BH_cov_AR, eval=FALSE}
 cat("
 
 
-", file=file.path(jagsdir, "IPM_BH_cov_AR.txt"))
+", file=file.path(standir, "IPM_BH_cov_AR.txt"))
 ```
 
 ***
 
 # Fitting the models
 
-Before fitting the model in JAGS, we need to specify:
+Before fitting the model in Stan, we need to specify:
 
 1. the data and indices that go into the model;
-2. the model parameters and states that we want JAGS to return;
+2. the model parameters and states that we want Stan to return;
 3. the MCMC control parameters.
 
-```{r jags_setup}
+```{r stan_setup}
 ## 1. Data to pass to Stan
 dat_Stan <- list(
   n_yrs = as.integer(n_yrs),
@@ -490,9 +491,9 @@ dat_Stan <- list(
 )
 if(length(dat_Stan$which_S_NA)==0) { dat_Stan$which_S_NA <- 1 }
 
-## 2. Model params/states for JAGS to return
+## 2. Model params/states for Stan to return
 ##    These are specific to the process model,
-##    so we define them in 'par_jags' below.
+##    so we define them in 'par_stan' below.
 
 ## 3. MCMC control params
 mcmc_ctrl <- list(
@@ -514,7 +515,7 @@ timer_start <- proc.time()
 
 Please note that the following code takes ~80 min to run on a quad-core machine with 3.5 GHz Intel processors.
 
-```{r jags_IO_base}
+```{r stan_inits}
 ## empty list for fits
 n_mods <- 4
 mod_fits <- vector("list", n_mods)
@@ -557,10 +558,14 @@ init_Stan <- function()
 
 ```{r fit_Ricker_base, message = FALSE, warning = FALSE, cache = FALSE}
 ## params/states for Stan to return
-par_Stan <- c("log_a","b","K","pp","sigma_proc","sigma_obs","R_tot","Rec","spawners","mu_p","prec_p")
+par_Stan <- c("log_a", "b", "K",
+              "pp", "mu_p", "prec_p",
+              "sigma_proc", "sigma_obs",
+              "R_tot", "Rec", "spawners"
+              )
 
 ## fit the model in Stan & store results
-stan.sksh <- stan(file = file.path(standir, "IPM_RK_AR.stan"),
+mod_fits[[1]] <- stan(file = file.path(standir, "IPM_RK_AR.stan"),
                   data = dat_Stan, 
                   init = init_Stan, 
                   pars = par_Stan,
@@ -588,53 +593,53 @@ t(round(autocorr.diag(mod_fits[[1]][,par_conv],
 #------------------
 
 # summary of Stan fit
-show(stan.sksh)
+show(mod_fits[[1]])
 
 # plot summary of Stan fit
-#plot(stan.sksh)
+#plot(mod_fits[[1]])
 
 # HMC sampler stats: all chains combined
-#summary(do.call(rbind, args = get_sampler_params(stan.sksh, inc_warmup = FALSE)), digits = 2)
+#summary(do.call(rbind, args = get_sampler_params(mod_fits[[1]], inc_warmup = FALSE)), digits = 2)
 
 # HMC sampler stats: each chain separately
-#lapply(get_sampler_params(stan.sksh, inc_warmup = FALSE), summary, digits = 2)
+#lapply(get_sampler_params(mod_fits[[1]], inc_warmup = FALSE), summary, digits = 2)
 
 # number of post-sampler divergent transitions
-#count_divergences(stan.sksh)
+#count_divergences(mod_fits[[1]])
 
-#hist_treedepth(stan.sksh)
+#hist_treedepth(mod_fits[[1]])
 
 
-#mod.list <- As.mcmc.list(stan.sksh)
+#mod.list <- As.mcmc.list(mod_fits[[1]])
 ```
 
 ```{r, eval=FALSE}
-Rec <- extract(stan.sksh, pars = "Rec", permuted = TRUE, inc_warmup = TRUE)$Rec
-R_tot <- unlist2(extract(stan.sksh, pars = "R_tot", permuted = TRUE, inc_warmup = TRUE))
-pp <- extract(stan.sksh, pars = "pp", permuted = TRUE, inc_warmup = TRUE)$Rec
+Rec <- extract(mod_fits[[1]], pars = "Rec", permuted = TRUE, inc_warmup = TRUE)$Rec
+R_tot <- unlist2(extract(mod_fits[[1]], pars = "R_tot", permuted = TRUE, inc_warmup = TRUE))
+pp <- extract(mod_fits[[1]], pars = "pp", permuted = TRUE, inc_warmup = TRUE)$Rec
 
 
 
 
-m1 <- as.array(stan.sksh)
+m1 <- as.array(mod_fits[[1]])
 #dev.new()
 par(mfrow=c(4,1), mai=c(0.6,0.6,0.1,0.1))
 apply(m1[,,"log_a"],2,acf)
 
 
-m2 <- as.matrix(stan.sksh)
+m2 <- as.matrix(mod_fits[[1]])
 #dev.new()
-pairs(stan.sksh, pars=c("b","log_a","K"))
+pairs(mod_fits[[1]], pars=c("b","log_a","K"))
 
-pairs(stan.sksh, pars=c("mu_p","prec_p"))
+pairs(mod_fits[[1]], pars=c("mu_p","prec_p"))
 
-pairs(stan.sksh, pars=c("sigma_proc","sigma_obs"))
+pairs(mod_fits[[1]], pars=c("sigma_proc","sigma_obs"))
 
-traceplot(stan.sksh, pars=c("sigma_proc","sigma_obs"))
+traceplot(mod_fits[[1]], pars=c("sigma_proc","sigma_obs"))
 
-#traceplot(stan.sksh, pars=colnames(m2)[grep("Rec",colnames(m2))])
+#traceplot(mod_fits[[1]], pars=colnames(m2)[grep("Rec",colnames(m2))])
 
-get_posterior_mean(stan.sksh, par=c("K","log_a","sigma_proc","sigma_obs"))
+get_posterior_mean(mod_fits[[1]], par=c("K","log_a","sigma_proc","sigma_obs"))
 
 
 ```
