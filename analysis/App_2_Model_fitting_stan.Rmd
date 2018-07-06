@@ -538,7 +538,7 @@ mod_fits[[1]] <- stan(file = file.path(standir, "IPM_RK_AR.stan"),
                       init = init_Stan, 
                       pars = par_Stan,
                       control=list(adapt_delta=0.99, max_treedepth=13),
-                      chains = 4, iter = 3000, warmup = 1000, thin = 10)
+                      chains = 4, iter = 6000, warmup = 1000, thin = 20)
 ```
 
 ```{r save_model, eval=TRUE}
