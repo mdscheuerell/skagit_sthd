@@ -1,8 +1,7 @@
 base
+here
+readr
 coda
 rjags
-readr
 loo
-gsl
-here
 ggplot2
