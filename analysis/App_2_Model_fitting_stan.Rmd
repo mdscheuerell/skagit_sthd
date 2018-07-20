@@ -104,7 +104,8 @@ count_divergences <- function(fit) {
 ## histogram of sampler tree depth
 hist_treedepth <- function(fit, plot.hist=TRUE) { 
   sampler_params <- get_sampler_params(fit, inc_warmup=FALSE) 
-  hist(sapply(sampler_params,function(x) c(x[,'treedepth__']))[,1],breaks=0:20,main="",xlab="Treedepth",plot=plot.hist) 
+  hist(sapply(sampler_params, function(x) c(x[,'treedepth__']))[,1],
+       breaks=0:20, main="", xlab="Treedepth", plot=plot.hist) 
   abline(v=10, col=2, lty=1) 
 } 
 
@@ -244,7 +245,7 @@ functions {
   // spawner-recruit functions
   real ricker(real log_a, real b, real S) {
     real R;
-    R = S * exp(log_a - S * b);
+    R = S * exp(log_a - S / b);
     return(R);
   }
 }
@@ -280,7 +281,8 @@ parameters {
   // log intrinsic productivity (units: R/S)
   real<lower=-2,upper=10> log_a;
   // asymptotic recruitment (units: S)
-  real<lower=0,upper=1> b;       
+  // real<lower=0,upper=1> b;       
+  real<lower=1> b;       
   // process error SD
   real<lower=1e-4,upper=3> sigma_proc;
   // process error z-scores
@@ -305,7 +307,7 @@ parameters {
 
 transformed parameters {
   // carrying capacity
-  real<lower=0> K;                     
+  // real<lower=0> K;                     
   // true total spawner abundance
   vector<lower=0>[n_yrs+n_fore] spawners;           
   // true total run size
@@ -323,12 +325,12 @@ transformed parameters {
   // recruits by age
   vector<lower=0>[AA] Rec[n_yrs-age_min+n_fore];            
   
-  if(log_a>0) {
-    K = log_a / b;
-  }
-  else {
-    K = 0;
-  }
+  // if(log_a>0) {
+  //   K = log_a / b;
+  // }
+  // else {
+  //   K = 0;
+  // }
   
   {
     // init dummy counter
@@ -398,8 +400,8 @@ model {
 
   // Priors
   log_a ~ normal(0,5);
-  b ~ normal(0,1);
-  phi ~ normal(0,5);
+  // b ~ normal(0,2);
+  // phi ~ normal(0,5);
   S_tot_init ~ lognormal(0,10);
   R_early ~ lognormal(0,10);
   if(n_S_NA == 0) {
@@ -517,7 +519,9 @@ mod_fits <- vector("list", n_mods)
 
 ## function to create Stan inits
 init_Stan <- function() {
-  for(i in names(dat_Stan)) assign(i, dat_Stan[[i]])
+  for(i in names(dat_Stan)) {
+    assign(i, dat_Stan[[i]])
+    }
   if(n_S_NA > 0) {
     S_tot_obs_noNA <- dat_esc
     dat_esc[which_S_NA] <- NA
@@ -526,7 +530,8 @@ init_Stan <- function() {
   R_tot <- rpois(n_yrs-age_min+n_fore,median(dat_esc[-which_S_NA]))
   inits <- list(
     log_a = runif(1,1,3),
-    b = 1/rpois(1,median(dat_esc[-which_S_NA])),
+    # b = 1/rpois(1,median(dat_esc[-which_S_NA])),
+    b = rpois(1,median(dat_esc[-which_S_NA])),
     sigma_proc = runif(1,0.1,0.5),
     proc_err_z = rnorm(n_yrs-age_min+n_fore),
     phi = runif(1,0,0.9),
@@ -547,9 +552,9 @@ init_Stan <- function() {
 
 ```{r fit_Ricker_base, message = FALSE, warning = TRUE, cache = FALSE}
 ## params/states for Stan to return
-par_Stan <- c("log_a", "b", "K",
+par_Stan <- c("log_a", "b", # "K",
               "pp", "mu_p", "prec_p",
-              "sigma_proc", "sigma_obs",
+              "phi", "sigma_proc", "sigma_obs",
               "R_tot", "Rec", "spawners")
 
 ## fit the model in Stan & store results
@@ -557,13 +562,19 @@ mod_fits[[1]] <- stan(file = file.path(standir, "IPM_RK_AR.stan"),
                       data = dat_Stan, 
                       init = init_Stan, 
                       pars = par_Stan,
-                      control=list(adapt_delta=0.99, max_treedepth=13),
-                      chains = 4, iter = 6000, warmup = 1000, thin = 20)
+                      control=list(adapt_delta=0.97, max_treedepth=13),
+                      chains = 1, iter = 2000, warmup = 1000, thin = 1)
 ```
 
 ```{r save_model, eval=TRUE}
 best_fit <- mod_fits[[1]]
 save(best_fit, file = file.path(analdir, "best_fit.rda"))
+```
+
+#### Pair plots
+
+```{r pair_plots, fig.width=7, fig.height=7}
+pairs(mod_fits[[1]], pars = c("log_a", "b", "phi", "sigma_proc", "sigma_obs"))
 ```
 
 
