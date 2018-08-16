@@ -186,9 +186,9 @@ dat_age <- dat_age[-(1:(age_min+age_skip)),-1]
 AA <- age_max - age_min + 1
 ## add row(s) of NA's for forecast years
 if(n_fore > 0) {
-  dat_age <- rbind(dat_age,
-                   matrix(0, n_fore, AA,
-                          dimnames = list(n_yrs+seq(n_fore),colnames(dat_age))))
+dat_age <- rbind(dat_age,
+matrix(0, n_fore, AA,
+dimnames = list(n_yrs+seq(n_fore),colnames(dat_age))))
 }
 ## total num of age obs by cal yr
 dat_age[,"sum"] <- apply(dat_age, 1, sum)
