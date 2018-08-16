@@ -1,30 +1,30 @@
 ---
-  title: Appendix S2. Model fitting and evaluation
+title: Appendix S2. Model fitting and evaluation
 output:
   html_document:
-  fig_caption: yes
-theme: cerulean
-toc: yes
-toc_depth: 3
-toc_float: yes
-number_sections: true
-pdf_document:
-  toc: yes
-toc_depth: '3'
+    fig_caption: yes
+    theme: cerulean
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+    number_sections: true
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
 ---
-  
-  ***
-  
-  This is version `r paste0('0.',format(Sys.time(), '%y.%m.%d'))`.
 
 ***
-  
-  ```{r set_options, echo = FALSE, message = FALSE}
+
+This is version `r paste0('0.',format(Sys.time(), '%y.%m.%d'))`.
+
+***
+
+```{r set_options, echo = FALSE, message = FALSE}
 options(width = 100)
 knitr::opts_chunk$set(message = FALSE)
 set.seed(123)
 if(file.exists("cnt_time.txt")) {
-  file.remove("cnt_time.txt")
+file.remove("cnt_time.txt")
 }
 ## setup parallel processing
 options(mc.cores = parallel::detectCores())
@@ -137,8 +137,8 @@ Rhat_thresh <- 1.1
 ```
 
 Next we specify the names of three necessary data files containing the following information:
-  
-  1. observed total number of adult spawners (escapement) by year;
+
+1. observed total number of adult spawners (escapement) by year;
 2. observed age composition of adult spawners by year;
 3. observed total harvest by year;
 
@@ -157,9 +157,10 @@ fn_harv <- "skagit_sthd_catch.csv"
 ```
 
 # Loading the fish data
+
 Here we load in the first three data files and do some simple calculations and manipulations. First the spawner data:
-  
-  ```{r get_escapement_data}
+
+```{r get_escapement_data}
 ## escapement
 dat_esc <- read_csv(file.path(datadir, fn_esc))
 ## years of data
@@ -175,8 +176,8 @@ yr_NA_esc <- is.na(dat_esc)
 ```
 
 Next the age composition data:
-  
-  ```{r get_age_data}
+
+```{r get_age_data}
 ## age comp data
 dat_age <- read_csv(file.path(datadir, fn_age))
 ## drop year col & first (age_min + age_skip) rows
@@ -202,8 +203,8 @@ dat_age <- as.matrix(dat_age[,1:AA])
 ```
 
 And then the harvest data:
-  
-  ```{r get_harvest}
+
+```{r get_harvest}
 ## harvest
 dat_harv <- read_csv(file.path(datadir, fn_harv))
 ## drop year col & first age_max rows
@@ -241,173 +242,173 @@ Now we can specify the various models in Stan. We fit a total of 4 different mod
 ```{r stan_RK_AR}
 cat("
 functions {
-// spawner-recruit functions
-real ricker(real log_a, real b, real S) {
-real R;
-R = S * exp(log_a - S * b);
-return(R);
-}
+  // spawner-recruit functions
+  real ricker(real log_a, real b, real S) {
+    real R;
+    R = S * exp(log_a - S * b);
+    return(R);
+  }
 }
 
 data {
-// number of years of spawner observations
-int<lower=1> n_yrs;                       
-// number of adult age classes
-int<lower=1> AA;                       
-// minimum adult age
-int<lower=1> age_min;          
-// maximum adult age
-int<lower=age_min> age_max;
-// early years to skip
-int<lower=0> age_skip;
-// number of years to forecast
-int<lower=0> n_fore;          
-// number of missing recruits to impute
-int<lower=1> n_rec_missing;
-// number of years with missing spawner abundance obs
-int<lower=0,upper=n_yrs> n_S_NA;          
-// rows with missing spawner abundance obs
-int<lower=1,upper=n_yrs> which_S_NA[max(n_S_NA,1)]; 
-// observed annual total spawner abundance (not density)
-vector<lower=0>[n_yrs] dat_esc;
-// observed annual spawner age distributions
-int<lower=0> dat_age[n_yrs-(age_min+age_skip),AA];
-// total catch of adults (no harvest on jacks)
-vector[n_yrs+n_fore] dat_harv;                         
+  // number of years of spawner observations
+  int<lower=1> n_yrs;                       
+  // number of adult age classes
+  int<lower=1> AA;                       
+  // minimum adult age
+  int<lower=1> age_min;          
+  // maximum adult age
+  int<lower=age_min> age_max;
+  // early years to skip
+  int<lower=0> age_skip;
+  // number of years to forecast
+  int<lower=0> n_fore;          
+  // number of missing recruits to impute
+  int<lower=1> n_rec_missing;
+  // number of years with missing spawner abundance obs
+  int<lower=0,upper=n_yrs> n_S_NA;          
+  // rows with missing spawner abundance obs
+  int<lower=1,upper=n_yrs> which_S_NA[max(n_S_NA,1)]; 
+  // observed annual total spawner abundance (not density)
+  vector<lower=0>[n_yrs] dat_esc;
+  // observed annual spawner age distributions
+  int<lower=0> dat_age[n_yrs-(age_min+age_skip),AA];
+  // total catch of adults (no harvest on jacks)
+  vector[n_yrs+n_fore] dat_harv;                         
 }
 
 parameters {
-// log intrinsic productivity (units: R/S)
-real<lower=-2,upper=10> log_a;
-// asymptotic recruitment (units: S)
-real<lower=0,upper=1> b;       
-// process error SD
-real<lower=1e-4,upper=3> sigma_proc;
-// process error z-scores
-vector[n_yrs-age_min+n_fore] proc_err_z;
-// AR(1) coef for proc errors
-real<lower=0,upper=1> phi;
-// observation error SD
-real<lower=1e-4,upper=3> sigma_obs;
-// hyper-mean age distribution by cohort
-simplex[AA] mu_p;                     
-// process error precision of age distribution by cohort
-real<lower=0.1,upper=50> prec_p;          
-// age distributions by cohort (i.e., brood year)
-simplex[AA] pp[n_yrs-age_min+n_fore];                    
-// true total spawner abundance in years 1:(age_min+age_skip)
-vector<lower=0>[age_min+age_skip] S_tot_init;       
-// unknown (missing) spawner abundance obs
-vector<lower=0>[max(n_S_NA,1)] dat_esc_NA;    
-// true recruits for early missing broods
-vector<lower=0>[n_rec_missing] R_early;           
-// total catch of adults (no harvest on jacks)
-vector<lower=0, upper=1>[n_yrs+n_fore] h_rate;                         
+  // log intrinsic productivity (units: R/S)
+  real<lower=-2,upper=10> log_a;
+  // asymptotic recruitment (units: S)
+  real<lower=0,upper=1> b;       
+  // process error SD
+  real<lower=1e-4,upper=3> sigma_proc;
+  // process error z-scores
+  vector[n_yrs-age_min+n_fore] proc_err_z;
+  // AR(1) coef for proc errors
+  real<lower=0,upper=1> phi;
+  // observation error SD
+  real<lower=1e-4,upper=3> sigma_obs;
+  // hyper-mean age distribution by cohort
+  simplex[AA] mu_p;                     
+  // process error precision of age distribution by cohort
+  real<lower=0.1,upper=50> prec_p;          
+  // age distributions by cohort (i.e., brood year)
+  simplex[AA] pp[n_yrs-age_min+n_fore];                    
+  // true total spawner abundance in years 1:(age_min+age_skip)
+  vector<lower=0>[age_min+age_skip] S_tot_init;       
+  // unknown (missing) spawner abundance obs
+  vector<lower=0>[max(n_S_NA,1)] dat_esc_NA;    
+  // true recruits for early missing broods
+  vector<lower=0>[n_rec_missing] R_early;           
+  // total catch of adults (no harvest on jacks)
+  vector<lower=0, upper=1>[n_yrs+n_fore] h_rate;                         
 }
 
 transformed parameters {
-// carrying capacity
-real<lower=0> K;                     
-// true total spawner abundance
-vector<lower=min(dat_harv)>[n_yrs+n_fore] spawners;           
-// true total run size
-vector<lower=0>[n_yrs+n_fore] tot_run;           
-// age distribution for calendar year returns
-simplex[AA] age_props[n_yrs-(age_min+age_skip)];                      
-// expected recruits by brood year
-vector<lower=0>[n_yrs-age_min+n_fore] R_tot_hat;
-// true recruits by brood year
-vector<lower=0>[n_yrs-age_min+n_fore] R_tot;           
-// process errors
-vector[n_yrs-age_min+n_fore] proc_err;
-// temp variable: true spawners by age
-vector<lower=0>[AA] run;
-// recruits by age
-vector<lower=0>[AA] Rec[n_yrs-age_min+n_fore];            
-// init dummy counter
-// vector[2] ret_vec;
-// wts for softmax
-// simplex[2] wts;            
-// total catch of adults (no harvest on jacks)
-vector[n_yrs+n_fore] est_harv;                         
-
-if(log_a>0) {
-K = log_a / b;
-}
-else {
-K = 0;
-}
-
-{
+  // carrying capacity
+  real<lower=0> K;                     
+  // true total spawner abundance
+  vector<lower=0>[n_yrs+n_fore] spawners;           
+  // true total run size
+  vector<lower=0>[n_yrs+n_fore] tot_run;           
+  // age distribution for calendar year returns
+  simplex[AA] age_props[n_yrs-(age_min+age_skip)];                      
+  // expected recruits by brood year
+  vector<lower=0>[n_yrs-age_min+n_fore] R_tot_hat;
+  // true recruits by brood year
+  vector<lower=0>[n_yrs-age_min+n_fore] R_tot;           
+  // process errors
+  vector[n_yrs-age_min+n_fore] proc_err;
+  // temp variable: true spawners by age
+  vector<lower=0>[AA] run;
+  // recruits by age
+  vector<lower=0>[AA] Rec[n_yrs-age_min+n_fore];            
   // init dummy counter
-  int cnt;
-  cnt = 0;                     
-  
-  for(t in 1:(n_yrs+n_fore)) {
-  if(t <= age_min+age_skip) {
-  // 1: early years with no projected recruits
-  tot_run[t] = S_tot_init[t];
+  // vector[2] ret_vec;
+  // wts for softmax
+  // simplex[2] wts;            
+  // total catch of adults (no harvest on jacks)
+  vector[n_yrs+n_fore] est_harv;                         
+
+  if(log_a>0) {
+    K = log_a / b;
   }
   else {
-  if(t <= age_max) {
-  // 2: middle years with incomplete recruits
-  // modeled recruits
-  for(a in 1:(t-age_min)) {
-  run[a] = Rec[t-age_min,a];
+    K = 0;
   }
-  // imputed recruits
-  for(a in (t-age_min+1):AA) {
-  cnt = cnt + 1;
-  run[a] = R_early[cnt];
-  }
-  }
-  else {
-  // 3: later years with complete recruits 
-  for(a in 1:AA) {
-  run[a] = Rec[t-age_min,a];
-  }
-  }
-  // total spawners in years with projected recruits
-  tot_run[t] = sum(run);
-  // projected calendar-yr age dist
-  if(t <= n_yrs) {
-  for(a in 1:AA) {
-  age_props[t-age_min-age_skip] = run/tot_run[t];
-  } 
-  }
-  }  // end else for middle & late years
-  
-  // estimated calendar-yr spawners
-  // ret_vec[1] = 0;                     
-  // ret_vec[2] = tot_run[t] - dat_harv[t];
-  // wts = softmax(ret_vec);
-  // spawners[t] = wts[1]*1 + wts[2]*ret_vec[2];
-  est_harv[t] = h_rate[t] * tot_run[t];
-  spawners[t] = tot_run[t] - est_harv[t];
-  
-  // get projected recruits by age
-  if(t <= (n_yrs-age_min+n_fore)) {
-  // process errors are AR(1)
-  if(t == 1) {
-  proc_err[t] = sigma_proc * proc_err_z[t] / sqrt(1 - phi^2);
-  }
-  else {
-  proc_err[t] = phi * proc_err[t-1] + sigma_proc * proc_err_z[t];
-  }
-  // total recruits
-  R_tot_hat[t] = ricker(log_a, b, spawners[t]);
-  R_tot[t] = R_tot_hat[t] * exp(proc_err[t]);
-  // brood-yr recruits by age
-  Rec[t] = R_tot[t] * pp[t];
-  }
-  
-  }  // end loop over t
-  
-}  // end group for dummy counter
-  
+
+  {
+    // init dummy counter
+    int cnt;
+    cnt = 0;                     
+    
+    for(t in 1:(n_yrs+n_fore)) {
+      if(t <= age_min+age_skip) {
+        // 1: early years with no projected recruits
+        tot_run[t] = S_tot_init[t];
+      }
+    else {
+      if(t <= age_max) {
+        // 2: middle years with incomplete recruits
+        // modeled recruits
+        for(a in 1:(t-age_min)) {
+          run[a] = Rec[t-age_min,a];
+        }
+        // imputed recruits
+        for(a in (t-age_min+1):AA) {
+          cnt = cnt + 1;
+          run[a] = R_early[cnt];
+        }
+      }
+      else {
+        // 3: later years with complete recruits 
+        for(a in 1:AA) {
+          run[a] = Rec[t-age_min,a];
+        }
+      }
+      // total spawners in years with projected recruits
+      tot_run[t] = sum(run);
+      // projected calendar-yr age dist
+      if(t <= n_yrs) {
+        for(a in 1:AA) {
+          age_props[t-age_min-age_skip] = run/tot_run[t];
+        } 
+      }
+    }  // end else for middle & late years
+    
+    // estimated calendar-yr spawners
+    // ret_vec[1] = 0;                     
+    // ret_vec[2] = tot_run[t] - dat_harv[t];
+    // wts = softmax(ret_vec);
+    // spawners[t] = wts[1]*1 + wts[2]*ret_vec[2];
+    est_harv[t] = h_rate[t] * tot_run[t];
+    spawners[t] = tot_run[t] - est_harv[t];
+    
+    // get projected recruits by age
+    if(t <= (n_yrs-age_min+n_fore)) {
+      // process errors are AR(1)
+      if(t == 1) {
+        proc_err[t] = sigma_proc * proc_err_z[t] / sqrt(1 - phi^2);
+      }
+      else {
+        proc_err[t] = phi * proc_err[t-1] + sigma_proc * proc_err_z[t];
+      }
+      // total recruits
+      R_tot_hat[t] = ricker(log_a, b, spawners[t]);
+      R_tot[t] = R_tot_hat[t] * exp(proc_err[t]);
+      // brood-yr recruits by age
+      Rec[t] = R_tot[t] * pp[t];
+    }
+    
+    }  // end loop over t
+    
+  }  // end group for dummy counter
+    
 }  // end transformed params
   
-  model {
+model {
   // observed total spawner abundance with missing obs filled in
   vector[n_yrs] dat_esc_aug;     
   
@@ -418,13 +419,13 @@ K = 0;
   S_tot_init ~ lognormal(0,10);
   R_early ~ lognormal(0,10);
   if(n_S_NA == 0) {
-  dat_esc_NA ~ lognormal(0,10);
+    dat_esc_NA ~ lognormal(0,10);
   }
   
   // Process models
   // hierarchical model of recruit age distn
   for(t in 1:(n_yrs-age_min+n_fore)) {
-  pp[t] ~ dirichlet(mu_p*prec_p);
+    pp[t] ~ dirichlet(mu_p*prec_p);
   }
   // total recruitment by brood year
   // R_tot ~ lognormal(log(R_tot_hat), sigma_proc);
@@ -433,63 +434,64 @@ K = 0;
   // Observation models
   dat_esc_aug = dat_esc;
   if(n_S_NA > 0) {
-  for(t in 1:n_S_NA) {
-  dat_esc_aug[which_S_NA[t]] = dat_esc_NA[t];
-  }
+    for(t in 1:n_S_NA) {
+      dat_esc_aug[which_S_NA[t]] = dat_esc_NA[t];
+    }
   }
   // observed total spawners
   dat_esc_aug ~ lognormal(log(spawners), sigma_obs);
   // observed harvest
-  dat_harv ~ lognormal(log(est_harv), 0.01);
+  dat_harv ~ lognormal(log(est_harv), 0.05);
   // observed age distribution
   for(t in 1:(n_yrs-age_min-age_skip)) {
-  dat_age[t] ~ multinomial(age_props[t]);
+    dat_age[t] ~ multinomial(age_props[t]);
   }
-  }
+}
   
   ", file=file.path(standir, "IPM_RK_AR.stan"))
-  ```
-  
-  ## Ricker with all covars & AR(1)
-  
-  ```{r stan_RK_cov_AR, eval=FALSE}
-  cat("
+```
+
+
+## Ricker with all covars & AR(1)
+
+```{r stan_RK_cov_AR, eval=FALSE}
+cat("
   
   
   ", file=file.path(standir, "IPM_RK_cov_AR.txt"))
-  ```
-  
-  ## Beverton-Holt with AR(1)
-  
-  ```{r stan_BH_AR, eval=FALSE}
-  cat("
+```
+
+## Beverton-Holt with AR(1)
+
+```{r stan_BH_AR, eval=FALSE}
+cat("
   
   
   ", file=file.path(standir, "IPM_BH_AR.txt"))
-  ```
-  
-  ## Beverton-Holt with all covars & AR(1)
-  
-  ```{r stan_BH_cov_AR, eval=FALSE}
-  cat("
-  
-  
-  ", file=file.path(standir, "IPM_BH_cov_AR.txt"))
-  ```
-  
-  ***
-  
-  # Fitting the models
-  
-  Before fitting the model in Stan, we need to specify:
-  
-  1. the data and indices that go into the model;
-  2. the model parameters and states that we want Stan to return;
-  3. the MCMC control parameters.
-  
-  ```{r stan_setup}
-  ## 1. Data to pass to Stan
-  dat_Stan <- list(
+```
+
+## Beverton-Holt with all covars & AR(1)
+
+```{r stan_BH_cov_AR, eval=FALSE}
+cat("
+
+
+", file=file.path(standir, "IPM_BH_cov_AR.txt"))
+```
+
+***
+
+# Fitting the models
+
+Before fitting the model in Stan, we need to specify:
+
+1. the data and indices that go into the model;
+2. the model parameters and states that we want Stan to return;
+3. the MCMC control parameters.
+
+```{r stan_setup}
+## 1. Data to pass to Stan
+dat_Stan <- list(
   n_yrs = as.integer(n_yrs),
   AA = as.integer(AA),
   age_min = as.integer(age_min),
@@ -502,154 +504,154 @@ K = 0;
   dat_esc = replace(dat_esc, is.na(dat_esc), 1),
   dat_age = dat_age,
   dat_harv = dat_harv
-  )
-  if(length(dat_Stan$which_S_NA)==0) { dat_Stan$which_S_NA <- 1 }
-  
-  ## 2. Model params/states for Stan to return
-  ##    These are specific to the process model,
-  ##    so we define them in 'par_stan' below.
-  
-  ## 3. MCMC control params
-  mcmc_ctrl <- list(
-  chains = 4,
-  length = 5e4,
-  burn = 2e4,
-  thin = 40
-  )
-  ## total number of MCMC samples after burnin
-  mcmc_samp <- mcmc_ctrl$length*mcmc_ctrl$chains/mcmc_ctrl$thin
-  ```
-  
-  ```{r start_timer, include = FALSE}
-  ## start timer
-  timer_start <- proc.time() 
-  ```
-  
-  ## Models without covariates
-  
-  Please note that the following code takes ~80 min to run on a quad-core machine with 3.5 GHz Intel processors.
-  
-  ```{r stan_inits}
-  ## empty list for fits
-  n_mods <- 4
-  mod_fits <- vector("list", n_mods)
-  
-  ## function to create Stan inits
-  init_Stan <- function() {
+)
+if(length(dat_Stan$which_S_NA)==0) { dat_Stan$which_S_NA <- 1 }
+
+## 2. Model params/states for Stan to return
+##    These are specific to the process model,
+##    so we define them in 'par_stan' below.
+
+## 3. MCMC control params
+mcmc_ctrl <- list(
+chains = 4,
+length = 5e4,
+burn = 2e4,
+thin = 40
+)
+## total number of MCMC samples after burnin
+mcmc_samp <- mcmc_ctrl$length*mcmc_ctrl$chains/mcmc_ctrl$thin
+```
+
+```{r start_timer, include = FALSE}
+## start timer
+timer_start <- proc.time() 
+```
+
+## Models without covariates
+
+Please note that the following code takes ~80 min to run on a quad-core machine with 3.5 GHz Intel processors.
+
+```{r stan_inits}
+## empty list for fits
+n_mods <- 4
+mod_fits <- vector("list", n_mods)
+
+## function to create Stan inits
+init_Stan <- function() {
   for(i in names(dat_Stan)) assign(i, dat_Stan[[i]])
   if(n_S_NA > 0) {
-  S_tot_obs_noNA <- dat_esc
-  dat_esc[which_S_NA] <- NA
+    S_tot_obs_noNA <- dat_esc
+    dat_esc[which_S_NA] <- NA
   }
   mu_p <- colSums(dat_age)/sum(dat_age)
   R_tot <- rpois(n_yrs-age_min+n_fore,median(dat_esc[-which_S_NA]))
   inits <- list(
-  log_a = runif(1,2,3),
-  b = 1/rpois(1,median(dat_esc[-which_S_NA])),
-  sigma_proc = runif(1,0.1,0.5),
-  proc_err_z = rnorm(n_yrs-age_min+n_fore),
-  phi = runif(1,0,0.9),
-  sigma_obs = runif(1,0.1,0.5), 
-  mu_p = mu_p,
-  prec_p = runif(1,1,2),
-  pp = matrix(mu_p,n_yrs-age_min+n_fore,AA,byrow=TRUE),
-  S_tot_init = rep(max(S_tot_obs_noNA), age_min+age_skip),
-  dat_esc_NA = array(rep(mean(dat_esc[-which_S_NA]), max(n_S_NA, 1)), dim=max(n_S_NA, 1)),
-  R_tot = R_tot,
-  R_early = rpois(((age_max-age_min-age_skip+1)^2-(age_max-age_min-age_skip+1))/2,1000)
+    log_a = runif(1,1,2),
+    b = 1/rpois(1,median(dat_esc[-which_S_NA])),
+    sigma_proc = runif(1,0.1,0.5),
+    proc_err_z = rnorm(n_yrs-age_min+n_fore),
+    phi = runif(1,0,0.9),
+    sigma_obs = runif(1,0.1,0.5), 
+    mu_p = mu_p,
+    prec_p = runif(1,1,2),
+    pp = matrix(mu_p,n_yrs-age_min+n_fore,AA,byrow=TRUE),
+    S_tot_init = rep(max(S_tot_obs_noNA), age_min+age_skip),
+    dat_esc_NA = array(rep(mean(dat_esc[-which_S_NA]), max(n_S_NA, 1)), dim=max(n_S_NA, 1)),
+    R_tot = R_tot,
+    R_early = rpois(((age_max-age_min-age_skip+1)^2-(age_max-age_min-age_skip+1))/2,1000),
+    h_rate = rep(0.2, n_yrs+n_fore)
   )
   return(inits)
-  }
-  ```
-  
-  ### Ricker
-  
-  ```{r fit_Ricker_base, message = FALSE, warning = TRUE, cache = FALSE}
-  ## params/states for Stan to return
-  par_Stan <- c("log_a", "b", "K",
-  "pp", "mu_p", "prec_p",
-  "sigma_proc", "sigma_obs",
-  "R_tot", "Rec", "spawners")
-  
-  ## fit the model in Stan & store results
-  mod_fits[[1]] <- stan(file = file.path(standir, "IPM_RK_AR.stan"),
-  data = dat_Stan, 
-  init = init_Stan, 
-  pars = par_Stan,
-  control=list(adapt_delta=0.99, max_treedepth=13),
-  chains = 2, iter = 6000, warmup = 1000, thin = 20)
-  ```
-  
-  ```{r save_model, eval=TRUE}
-  best_fit <- mod_fits[[1]]
-  save(best_fit, file = file.path(analdir, "best_fit.rda"))
-  ```
-  
-  
-  #### Convergence checks
-  
-  ```{r diag_Ricker, eval=FALSE}
-  par_conv <- c("alpha","beta","sigma_r","sigma_s","pi_tau",paste0("pi_eta[",seq(AA-1),"]"))
-  
-  ## Gelman-Rubin
-  gelman.diag(mod_fits[[1]][,par_conv])
-  
-  ## autocorrelation
-  t(round(autocorr.diag(mod_fits[[1]][,par_conv],
-  lags = seq(mcmc_ctrl$thin, 4*mcmc_ctrl$thin, mcmc_ctrl$thin),
-  relative=FALSE), 2))
-  ```
-  
-  ```{r stan_diag}
-  #------------------
-  # Stan diagnostics
-  #------------------
-  
-  # summary of Stan fit
-  show(mod_fits[[1]])
-  
-  # plot summary of Stan fit
-  #plot(mod_fits[[1]])
-  
-  # HMC sampler stats: all chains combined
-  #summary(do.call(rbind, args = get_sampler_params(mod_fits[[1]], inc_warmup = FALSE)), digits = 2)
-  
-  # HMC sampler stats: each chain separately
-  #lapply(get_sampler_params(mod_fits[[1]], inc_warmup = FALSE), summary, digits = 2)
-  
-  # number of post-sampler divergent transitions
-  #count_divergences(mod_fits[[1]])
-  
-  #hist_treedepth(mod_fits[[1]])
-  
-  
-  #mod.list <- As.mcmc.list(mod_fits[[1]])
-  ```
-  
-  ```{r, eval=FALSE}
-  Rec <- extract(mod_fits[[1]], pars = "Rec", permuted = TRUE, inc_warmup = TRUE)$Rec
-  R_tot <- unlist2(extract(mod_fits[[1]], pars = "R_tot", permuted = TRUE, inc_warmup = TRUE))
-  pp <- extract(mod_fits[[1]], pars = "pp", permuted = TRUE, inc_warmup = TRUE)$Rec
-  
-  m1 <- as.array(mod_fits[[1]])
-  #dev.new()
-  par(mfrow=c(4,1), mai=c(0.6,0.6,0.1,0.1))
-  apply(m1[,,"log_a"],2,acf)
-  
-  m2 <- as.matrix(mod_fits[[1]])
-  #dev.new()
-  pairs(mod_fits[[1]], pars=c("b","log_a","K"))
-  
-  pairs(mod_fits[[1]], pars=c("mu_p","prec_p"))
-  
-  pairs(mod_fits[[1]], pars=c("sigma_proc","sigma_obs"))
-  
-  traceplot(mod_fits[[1]], pars=c("sigma_proc","sigma_obs"))
-  
-  #traceplot(mod_fits[[1]], pars=colnames(m2)[grep("Rec",colnames(m2))])
-  
-  get_posterior_mean(mod_fits[[1]], par=c("K","log_a","sigma_proc","sigma_obs"))
-  
-  ```
-  
-  
+}
+```
+
+### Ricker
+
+```{r fit_Ricker_base, message = FALSE, warning = TRUE, cache = FALSE}
+## params/states for Stan to return
+par_Stan <- c("log_a", "b", "K",
+              "pp", "mu_p", "prec_p",
+              "sigma_proc", "sigma_obs",
+              "R_tot", "Rec", "spawners")
+
+## fit the model in Stan & store results
+mod_fits[[1]] <- stan(file = file.path(standir, "IPM_RK_AR.stan"),
+                      data = dat_Stan, 
+                      init = init_Stan, 
+                      pars = par_Stan,
+                      control=list(adapt_delta=0.99, max_treedepth=13),
+                      chains = 4, iter = 6000, warmup = 1000, thin = 20)
+```
+
+```{r save_model, eval=TRUE}
+best_fit <- mod_fits[[1]]
+save(best_fit, file = file.path(analdir, "best_fit.rda"))
+```
+
+
+#### Convergence checks
+
+```{r diag_Ricker, eval=FALSE}
+par_conv <- c("alpha","beta","sigma_r","sigma_s","pi_tau",paste0("pi_eta[",seq(AA-1),"]"))
+
+## Gelman-Rubin
+gelman.diag(mod_fits[[1]][,par_conv])
+
+## autocorrelation
+t(round(autocorr.diag(mod_fits[[1]][,par_conv],
+                      lags = seq(mcmc_ctrl$thin, 4*mcmc_ctrl$thin, mcmc_ctrl$thin),
+                      relative=FALSE), 2))
+```
+
+```{r stan_diag}
+#------------------
+# Stan diagnostics
+#------------------
+
+# summary of Stan fit
+show(mod_fits[[1]])
+
+# plot summary of Stan fit
+#plot(mod_fits[[1]])
+
+# HMC sampler stats: all chains combined
+#summary(do.call(rbind, args = get_sampler_params(mod_fits[[1]], inc_warmup = FALSE)), digits = 2)
+
+# HMC sampler stats: each chain separately
+#lapply(get_sampler_params(mod_fits[[1]], inc_warmup = FALSE), summary, digits = 2)
+
+# number of post-sampler divergent transitions
+#count_divergences(mod_fits[[1]])
+
+#hist_treedepth(mod_fits[[1]])
+
+
+#mod.list <- As.mcmc.list(mod_fits[[1]])
+```
+
+```{r, eval=FALSE}
+Rec <- extract(mod_fits[[1]], pars = "Rec", permuted = TRUE, inc_warmup = TRUE)$Rec
+R_tot <- unlist2(extract(mod_fits[[1]], pars = "R_tot", permuted = TRUE, inc_warmup = TRUE))
+pp <- extract(mod_fits[[1]], pars = "pp", permuted = TRUE, inc_warmup = TRUE)$Rec
+
+m1 <- as.array(mod_fits[[1]])
+#dev.new()
+par(mfrow=c(4,1), mai=c(0.6,0.6,0.1,0.1))
+apply(m1[,,"log_a"],2,acf)
+
+m2 <- as.matrix(mod_fits[[1]])
+#dev.new()
+pairs(mod_fits[[1]], pars=c("b","log_a","K"))
+
+pairs(mod_fits[[1]], pars=c("mu_p","prec_p"))
+
+pairs(mod_fits[[1]], pars=c("sigma_proc","sigma_obs"))
+
+traceplot(mod_fits[[1]], pars=c("sigma_proc","sigma_obs"))
+
+#traceplot(mod_fits[[1]], pars=colnames(m2)[grep("Rec",colnames(m2))])
+
+get_posterior_mean(mod_fits[[1]], par=c("K","log_a","sigma_proc","sigma_obs"))
+
+```
+
