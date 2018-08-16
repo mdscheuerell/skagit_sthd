@@ -259,8 +259,8 @@ model {
 		tot_Run[i] <- exp(ln_tot_Run[i]);
   }
   
-  ## hyper-prec for maturity
-  for(t in 1:(n_yrs+n_fore)) { h_rate[t] ~ runif(0,1) }
+  ## estimated harvest rate
+  for(t in 1:(n_yrs+n_fore)) { h_rate[t] ~ dunif(0,1) }
 
   ##------------
   ## LIKELIHOOD
@@ -422,6 +422,9 @@ model {
 		tot_Run[i] <- exp(ln_tot_Run[i]);
   }
   
+  ## estimated harvest rate
+  for(t in 1:(n_yrs+n_fore)) { h_rate[t] ~ dunif(0,1) }
+
   ##------------
   ## LIKELIHOOD
   ##------------
@@ -507,7 +510,10 @@ model {
   ## first cal yr is first brood yr
   for(t in 1:(n_yrs+n_fore)) {
     ## obs model for spawners
-    Sp[t] <- max(1,tot_Run[t] - dat_harv[t]);
+    # Sp[t] <- max(10,tot_Run[t] - dat_harv[t]);
+    est_harv[t] = h_rate[t] * tot_Run[t];
+    dat_harv[t] ~ dlnorm(log(est_harv[t]), 0.05);
+    Sp[t] = tot_Run[t] - est_harv[t];
     ln_Sp[t] <- log(Sp[t]);
     ln_dat_esc[t] ~ dnorm(ln_Sp[t], tau_s);
     lp_esc[t] <- logdensity.norm(ln_dat_esc[t],ln_Sp[t], tau_s);
@@ -577,6 +583,9 @@ model {
   pi_tau ~ dnorm(0, 0.01) T(0,);
   for(t in 1:(n_yrs-age_min+n_fore)) { pi_vec[t,1:A] ~ ddirch(pi_eta*pi_tau) }
   
+  ## estimated harvest rate
+  for(t in 1:(n_yrs+n_fore)) { h_rate[t] ~ dunif(0,1) }
+
   ##------------
   ## LIKELIHOOD
   ##------------
@@ -660,7 +669,10 @@ model {
   ## first cal yr is first brood yr
   for(t in 1:(n_yrs+n_fore)) {
     ## obs model for spawners
-    Sp[t] <- max(10,tot_Run[t] - dat_harv[t]);
+    # Sp[t] <- max(10,tot_Run[t] - dat_harv[t]);
+    est_harv[t] = h_rate[t] * tot_Run[t];
+    dat_harv[t] ~ dlnorm(log(est_harv[t]), 0.05);
+    Sp[t] = tot_Run[t] - est_harv[t];
     ln_Sp[t] <- log(Sp[t]);
     ln_dat_esc[t] ~ dnorm(ln_Sp[t], tau_s);
     lp_esc[t] <- logdensity.norm(ln_dat_esc[t],ln_Sp[t], tau_s);
@@ -734,6 +746,9 @@ model {
   pi_tau ~ dnorm(0, 0.01) T(0,);
   for(t in 1:(n_yrs-age_min+n_fore)) { pi_vec[t,1:A] ~ ddirch(pi_eta*pi_tau) }
   
+  ## estimated harvest rate
+  for(t in 1:(n_yrs+n_fore)) { h_rate[t] ~ dunif(0,1) }
+
   ##------------
   ## LIKELIHOOD
   ##------------
@@ -818,7 +833,10 @@ model {
   ## first cal yr is first brood yr
   for(t in 1:(n_yrs+n_fore)) {
     ## obs model for spawners
-    Sp[t] <- max(10,tot_Run[t] - dat_harv[t]);
+    # Sp[t] <- max(10,tot_Run[t] - dat_harv[t]);
+    est_harv[t] = h_rate[t] * tot_Run[t];
+    dat_harv[t] ~ dlnorm(log(est_harv[t]), 0.05);
+    Sp[t] = tot_Run[t] - est_harv[t];
     ln_Sp[t] <- log(Sp[t]);
     ln_dat_esc[t] ~ dnorm(ln_Sp[t], tau_s);
     lp_esc[t] <- logdensity.norm(ln_dat_esc[t],ln_Sp[t], tau_s);
@@ -858,9 +876,9 @@ dat_jags <- list(dat_age = dat_age,
 ## 3. MCMC control params
 mcmc_ctrl <- list(
   chains = 4,
-  length = 5e5,
-  burn = 2e5,
-  thin = 400
+  length = 5e4,
+  burn = 2e4,
+  thin = 40
 )
 ## total number of MCMC samples after burnin
 mcmc_samp <- mcmc_ctrl$length*mcmc_ctrl$chains/mcmc_ctrl$thin
