@@ -876,9 +876,9 @@ dat_jags <- list(dat_age = dat_age,
 ## 3. MCMC control params
 mcmc_ctrl <- list(
   chains = 4,
-  length = 5e4,
-  burn = 2e4,
-  thin = 40
+  length = 5e5,
+  burn = 2e5,
+  thin = 400
 )
 ## total number of MCMC samples after burnin
 mcmc_samp <- mcmc_ctrl$length*mcmc_ctrl$chains/mcmc_ctrl$thin

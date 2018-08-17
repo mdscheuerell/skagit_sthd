@@ -15,10 +15,11 @@ model {
   beta <- 1/beta_inv;
   
   ## covariate effects
-  gamma ~ dnorm(0,0.01);
+  for(i in 1:n_cov) { gamma[i] ~ dnorm(0,0.01) }
 
   ## AR(1) coef for proc errors
-  phi ~ dunif(-0.999,0.999);
+  # phi ~ dunif(-0.999,0.999);
+  phi <- 0;
   
   ## innovation in first year
   innov_1 ~ dnorm(0,tau_r*(1-phi*phi));
@@ -50,7 +51,6 @@ model {
   
   ## maturity schedule
   ## unif vec for Dirch prior
-  # for(i in 1:A) { theta[i] <- 1 }
   theta <- c(1,10,10,5,1,1)
   ## hyper-mean for maturity
   pi_eta ~ ddirch(theta);
@@ -58,11 +58,14 @@ model {
   pi_tau ~ dnorm(0, 0.01) T(0,);
   for(t in 1:(n_yrs-age_min+n_fore)) { pi_vec[t,1:A] ~ ddirch(pi_eta*pi_tau) }
   
+  ## estimated harvest rate
+  for(t in 1:(n_yrs+n_fore)) { h_rate[t] ~ dunif(0,1) }
+
   ##------------
   ## LIKELIHOOD
   ##------------
   ## predicted recruits in BY t
-  covar[1] <- gamma*mod_cvrs[1];
+  covar[1] <- inprod(gamma,mod_cvrs[1,]);
   ln_BH_a[1] <- mu_BH_a + covar[1]; 
   E_ln_Rec[1] <- ln_BH_a[1] + ln_Sp[1] - log(1 + beta*Sp[1]) + phi*innov_1;
   tot_ln_Rec[1] ~ dnorm(E_ln_Rec[1],tau_r);
@@ -81,7 +84,7 @@ model {
   ## brood years 2:(n_yrs-age_min)
   for(t in 2:(n_yrs-age_min+n_fore)) {
     ## predicted recruits in BY t
-    covar[t] <- gamma*mod_cvrs[t];
+    covar[t] <- inprod(gamma, mod_cvrs[t,]);
     ln_BH_a[t] <- mu_BH_a + covar[t]; 
     E_ln_Rec[t] <- ln_BH_a[t] + ln_Sp[t] - log(1 + beta*Sp[t]) + phi*res_ln_Rec[t-1];
     tot_ln_Rec[t] ~ dnorm(E_ln_Rec[t],tau_r);
@@ -142,7 +145,10 @@ model {
   ## first cal yr is first brood yr
   for(t in 1:(n_yrs+n_fore)) {
     ## obs model for spawners
-    Sp[t] <- max(10,tot_Run[t] - dat_harv[t]);
+    # Sp[t] <- max(10,tot_Run[t] - dat_harv[t]);
+    est_harv[t] = h_rate[t] * tot_Run[t];
+    dat_harv[t] ~ dlnorm(log(est_harv[t]), 0.05);
+    Sp[t] = tot_Run[t] - est_harv[t];
     ln_Sp[t] <- log(Sp[t]);
     ln_dat_esc[t] ~ dnorm(ln_Sp[t], tau_s);
     lp_esc[t] <- logdensity.norm(ln_dat_esc[t],ln_Sp[t], tau_s);
