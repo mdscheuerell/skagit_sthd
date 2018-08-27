@@ -416,10 +416,10 @@ model {
   log_a ~ normal(0,5);
   b ~ normal(0,1);
   phi ~ normal(0,5);
-  S_tot_init ~ lognormal(0,10);
-  R_early ~ lognormal(0,10);
+  S_tot_init ~ normal(0,1e6);
+  R_early ~ normal(0,1e6);
   if(n_S_NA == 0) {
-    dat_esc_NA ~ lognormal(0,10);
+    dat_esc_NA ~ normal(0,1e6);
   }
   
   // Process models
@@ -441,14 +441,14 @@ model {
   // observed total spawners
   dat_esc_aug ~ lognormal(log(spawners), sigma_obs);
   // observed harvest
-  dat_harv ~ lognormal(log(est_harv), 0.05);
+  dat_harv ~ lognormal(log(est_harv), 0.1);
   // observed age distribution
   for(t in 1:(n_yrs-age_min-age_skip)) {
     dat_age[t] ~ multinomial(age_props[t]);
   }
 }
-  
-  ", file=file.path(standir, "IPM_RK_AR.stan"))
+
+", file=file.path(standir, "IPM_RK_AR.stan"))
 ```
 
 
@@ -553,7 +553,7 @@ init_Stan <- function() {
     phi = runif(1,0,0.9),
     sigma_obs = runif(1,0.1,0.5), 
     mu_p = mu_p,
-    prec_p = runif(1,1,2),
+    prec_p = runif(1,10,20),
     pp = matrix(mu_p,n_yrs-age_min+n_fore,AA,byrow=TRUE),
     S_tot_init = rep(max(S_tot_obs_noNA), age_min+age_skip),
     dat_esc_NA = array(rep(mean(dat_esc[-which_S_NA]), max(n_S_NA, 1)), dim=max(n_S_NA, 1)),
@@ -567,25 +567,33 @@ init_Stan <- function() {
 
 ### Ricker
 
-```{r fit_Ricker_base, message = FALSE, warning = TRUE, cache = FALSE}
+```{r fit_Ricker_base, message = FALSE, warning = TRUE, cache = TRUE}
 ## params/states for Stan to return
 par_Stan <- c("log_a", "b", "K",
               "pp", "mu_p", "prec_p",
               "sigma_proc", "sigma_obs",
-              "R_tot", "Rec", "spawners")
+              "R_tot", "Rec",
+              "est_harv",
+              "spawners")
 
 ## fit the model in Stan & store results
 mod_fits[[1]] <- stan(file = file.path(standir, "IPM_RK_AR.stan"),
                       data = dat_Stan, 
                       init = init_Stan, 
                       pars = par_Stan,
-                      control=list(adapt_delta=0.99, max_treedepth=13),
-                      chains = 4, iter = 6000, warmup = 1000, thin = 20)
+                      control=list(adapt_delta=0.99, max_treedepth=14),
+                      chains = 4, iter = 5000, warmup = 1000, thin = 8)
+```
+
+```{r stop_timer, include = FALSE}
+## stop timer
+run_time_in_min <- round(((proc.time()-timer_start)/60)["elapsed"], 1)
+cat(run_time_in_min, file = "stan_run_time_in_min.txt")
 ```
 
 ```{r save_model, eval=TRUE}
 best_fit <- mod_fits[[1]]
-save(best_fit, file = file.path(analdir, "best_fit.rda"))
+save(best_fit, file = file.path(analdir, "best_fit_stan.rda"))
 ```
 
 
@@ -629,19 +637,19 @@ show(mod_fits[[1]])
 #mod.list <- As.mcmc.list(mod_fits[[1]])
 ```
 
-```{r, eval=FALSE}
-Rec <- extract(mod_fits[[1]], pars = "Rec", permuted = TRUE, inc_warmup = TRUE)$Rec
-R_tot <- unlist2(extract(mod_fits[[1]], pars = "R_tot", permuted = TRUE, inc_warmup = TRUE))
-pp <- extract(mod_fits[[1]], pars = "pp", permuted = TRUE, inc_warmup = TRUE)$Rec
-
-m1 <- as.array(mod_fits[[1]])
-#dev.new()
-par(mfrow=c(4,1), mai=c(0.6,0.6,0.1,0.1))
-apply(m1[,,"log_a"],2,acf)
-
-m2 <- as.matrix(mod_fits[[1]])
-#dev.new()
-pairs(mod_fits[[1]], pars=c("b","log_a","K"))
+```{r, eval=TRUE}
+# Rec <- extract(mod_fits[[1]], pars = "Rec", permuted = TRUE, inc_warmup = TRUE)$Rec
+# R_tot <- unlist2(extract(mod_fits[[1]], pars = "R_tot", permuted = TRUE, inc_warmup = TRUE))
+# pp <- extract(mod_fits[[1]], pars = "pp", permuted = TRUE, inc_warmup = TRUE)$Rec
+# 
+# m1 <- as.array(mod_fits[[1]])
+# #dev.new()
+# par(mfrow=c(4,1), mai=c(0.6,0.6,0.1,0.1))
+# apply(m1[,,"log_a"],2,acf)
+# 
+# m2 <- as.matrix(mod_fits[[1]])
+# #dev.new()
+pairs(mod_fits[[1]], pars=c("b","log_a"))
 
 pairs(mod_fits[[1]], pars=c("mu_p","prec_p"))
 
