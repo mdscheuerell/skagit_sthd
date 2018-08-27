@@ -174,10 +174,10 @@ model {
   log_a ~ normal(0,5);
   b ~ normal(0,1);
   phi ~ normal(0,5);
-  S_tot_init ~ lognormal(0,10);
-  R_early ~ lognormal(0,10);
+  S_tot_init ~ normal(0,1e6);
+  R_early ~ normal(0,1e6);
   if(n_S_NA == 0) {
-    dat_esc_NA ~ lognormal(0,10);
+    dat_esc_NA ~ normal(0,1e6);
   }
   
   // Process models
@@ -199,11 +199,10 @@ model {
   // observed total spawners
   dat_esc_aug ~ lognormal(log(spawners), sigma_obs);
   // observed harvest
-  dat_harv ~ lognormal(log(est_harv), 0.05);
+  dat_harv ~ lognormal(log(est_harv), 0.1);
   // observed age distribution
   for(t in 1:(n_yrs-age_min-age_skip)) {
     dat_age[t] ~ multinomial(age_props[t]);
   }
 }
-  
-  
+
