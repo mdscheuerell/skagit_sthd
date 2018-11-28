@@ -1,5 +1,5 @@
 ---
-title: "Appendix S2. Model fitting and evaluation"
+title: "Appendix S2. Model definitions, model fitting, and model evaluation."
 subtitle: Supporting information for Scheuerell et al.
 output:
   pdf_document:
@@ -16,6 +16,8 @@ set.seed(123)
 if(file.exists("cnt_time.txt")) {
   file.remove("cnt_time.txt")
 }
+mod_names <- data.frame(mod = rep(c("Ricker", "Beverton-Holt"), 2),
+                        cov = rep(c("without", "with"), 2))
 ```
 
 \vspace{0.2in}
@@ -24,7 +26,7 @@ This is version `r paste0('0.',format(Sys.time(), '%y.%m.%d'))`.
 
 # Background
 
-This appendix describes how we fit the various model forms and evaluated their relative performances. We load the fish data and the environmenal covariates, specify the different models in the the __JAGS__ software, and then fit each of them. 
+This appendix describes how we fit the models and evaluated their relative performances. It demonstrates how to load the fish data and environmenal covariates, specify the different models in the __JAGS__ software, and fit each one. 
 
 All analyses require the [R software](https://cran.r-project.org/) (v3.4.3 or later) for data retrieval, data processing, and summarizing model results, and the [JAGS software](http://mcmc-jags.sourceforge.net/) (v4.2.0) for Markov chain Monte Carlo (MCMC) simulation. Please note that some of the __R__ code below may not work with older versions of __JAGS__ due to some changes in the ways that arrays are handled.
 
@@ -1124,8 +1126,7 @@ cat(run_time_in_min, file = "run_time_in_min.txt")
 
 Via `loo()` and `compare()` with full table of results. Note that `elpd_diff` will be negative (positive) if the expected predictive accuracy for the first (second) model is higher.
 
-```{r get_LOOIC_c, fig.height=8, fig.width=6, warning=FALSE, cache=FALSE}
-par(mfrow=c(4,1), mai=c(0.6,0.6,0.1,0.1), omi=rep(0,4))
+```{r get_LOOIC_c, warning=FALSE, cache=FALSE}
 LOOIC <- vector("list", n_mods)
 ## extract log densities from JAGS objects
 for(i in 1:n_mods) {
@@ -1141,7 +1142,6 @@ for(i in 1:n_mods) {
   }
   ## calculate LOOIC
   LOOIC[[i]] <- loo(tmp_lp)
-  plot(LOOIC[[i]], main="")
 }
 
 ## LOOIC for all data
@@ -1164,14 +1164,20 @@ compare(LOOIC[[2]], LOOIC[[4]])
 compare(LOOIC[[1]], LOOIC[[2]])
 ## Ricker to BH (with covariates)
 compare(LOOIC[[3]], LOOIC[[4]])
+
+## best model
+best_i <- which(tbl_LOOIC[,"looic"] == min(tbl_LOOIC[,"looic"]))
+best_fit <- mod_fits[[best_i]]
 ```
 
-## Model diagnostics
+These results show that the `r mod_names[best_i,"mod"]` model `r mod_names[best_i,"cov"]` covariates has the lowest LOOIC value. Therefore, the rest of the results will be based on that model.
 
-Here is a histogram of the Gelman & Rubin statistics $(R_{hat})$ for the estimated parameters. Recall that we set an upper threshold of `r Rhat_thresh`, so values larger than that deserve some additional inspection.
+
+# Model diagnostics
+
+Here is a table of the Gelman & Rubin statistics $(R_{hat})$ for the estimated parameters. Recall that we set an upper threshold of `r Rhat_thresh`, so values larger than that deserve some additional inspection.
 
 ```{r model_diagnostics, eval=TRUE}
-best_fit <- mod_fits[[4]]
 ## params of interest
 par_conv <- c("alpha","beta",paste0("gamma[",seq(4),"]"),
               "sigma_r","sigma_s","pi_tau",paste0("pi_eta[",seq(A-1),"]"))
