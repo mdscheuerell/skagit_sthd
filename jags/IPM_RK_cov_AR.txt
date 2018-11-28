@@ -148,7 +148,7 @@ model {
     ## obs model for spawners
     # Sp[t] <- max(10,tot_Run[t] - dat_harv[t]);
     est_harv[t] = h_rate[t] * tot_Run[t];
-    dat_harv[t] ~ dlnorm(log(est_harv[t]), 0.05);
+    dat_harv[t] ~ dlnorm(log(est_harv[t]), 20);
     Sp[t] = tot_Run[t] - est_harv[t];
     ln_Sp[t] <- log(Sp[t]);
     ln_dat_esc[t] ~ dnorm(ln_Sp[t], tau_s);
