@@ -45,6 +45,7 @@ if(!require("coda")) {
 ## set directory locations
 datadir <- here("data")
 analdir <- here("analysis")
+savedir <- here("analysis/cache")
 ```
 
 We also need a couple of helper functions.
@@ -62,7 +63,7 @@ Re2prec <- function(x, map = "round", prec = 1) {
 ```{r get_user_inputs, echo=FALSE}
 ## first & last years of fish data
 yr_frst <- 1978
-yr_last <- 2017
+yr_last <- 2018
 ## years of data
 dat_yrs <- seq(yr_frst,yr_last)
 ## number of years of data
@@ -83,7 +84,7 @@ n_fore <- 0
 Here we load in the model fits, covariates, and harvest data.
 
 ```{r load_mod_fits}
-load(file.path(analdir, "best_fit.rda"))
+best_fit <- readRDS(file.path(savedir, "fit_bh_cov.rds"))
 ```
 
 ```{r load_covariates}
@@ -154,11 +155,11 @@ yM <- Re2prec(max(rDat),"ceiling",dd)
 #yM <- 30000
 xM <- Re2prec(max(sDat),"ceiling",dd)
 par(mai = c(0.8,0.8,0.1,0.1), omi = c(0,0,0,0))
-plot(sDat[2,],rDat[2,], xlim = c(0,xM), ylim = c(0,yM), pch = 16, col = "blue3", type = "n",
+plot(sDat[2,], rDat[2,], xlim = c(0,xM), ylim = c(0,yM), pch = 16, col = "blue3", type = "n",
      xaxs = "i", yaxs = "i", ylab = "Recruits (1000s)", xlab = "Spawners (1000s)", cex.lab = 1.2,
      xaxt = "n", yaxt = "n")
 axis(1, at = seq(0,xM,dd*2), labels = seq(0,xM,dd*2)/1000)
-axis(2, at = seq(0,yM,dd*2), labels = seq(0,yM,dd*2)/1000)
+axis(2, at = seq(0,yM,dd*2), labels = seq(0,yM,dd*2)/1000, las=1)
 for(i in 1:length(aa)) { lines(exp(aa[i])*seq(0,xM)/(1+bb*seq(0,xM)), col = "darkgray") }
 # for(i in 1:length(aa)) { lines(seq(xM)*exp(aa[i]-bb*seq(xM)), col = "darkgray") }
 abline(a = 0,b = 1,lty = "dashed")
