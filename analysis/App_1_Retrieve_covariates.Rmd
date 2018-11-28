@@ -1,5 +1,5 @@
 ---
-title: Appendix S1. Detailed instructions for retrieving and archiving the environmental covariates.
+title: Appendix S1. Instructions for retrieving and archiving the environmental covariates.
 subtitle: Supporting information for Scheuerell et al.
 output:
   pdf_document:
