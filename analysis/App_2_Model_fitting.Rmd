@@ -1,25 +1,13 @@
 ---
 title: "Appendix S2. Model fitting and evaluation"
+subtitle: Supporting information for Scheuerell et al.
 output:
   pdf_document:
     highlight: haddock
     toc: yes
     number_sections: true
     toc_depth: '3'
-  html_document:
-    fig_caption: yes
-    number_sections: yes
-    theme: cerulean
-    toc: yes
-    toc_depth: 3
-    toc_float: yes
 ---
-
-***
-
-This is version `r paste0('0.',format(Sys.time(), '%y.%m.%d'))`.
-
-***
 
 ```{r set_options, echo = FALSE, message = FALSE}
 options(width = 100)
@@ -30,10 +18,17 @@ if(file.exists("cnt_time.txt")) {
 }
 ```
 
-# Requirements
-All analyses require the [R software](https://cran.r-project.org/) (v3.4.3) for data retrieval, data processing, and summarizing model results, and the [JAGS software](http://mcmc-jags.sourceforge.net/) (v4.2.0) for Markov chain Monte Carlo (MCMC) simulation. Please note that some of the R code below may not work with older versions of JAGS due to some changes in the ways that arrays are handled.
+\vspace{0.2in}
 
-We also need a few packages that are not included with the base installation of R, so we begin by installing them (if necessary) and then loading them.
+This is version `r paste0('0.',format(Sys.time(), '%y.%m.%d'))`.
+
+# Background
+
+This appendix describes how we fit the various model forms and evaluated their relative performances. We load the fish data and the environmenal covariates, specify the different models in the the __JAGS__ software, and then fit each of them. 
+
+All analyses require the [R software](https://cran.r-project.org/) (v3.4.3 or later) for data retrieval, data processing, and summarizing model results, and the [JAGS software](http://mcmc-jags.sourceforge.net/) (v4.2.0) for Markov chain Monte Carlo (MCMC) simulation. Please note that some of the __R__ code below may not work with older versions of __JAGS__ due to some changes in the ways that arrays are handled.
+
+We also need a few packages that are not included with the base installation of __R__, so we begin by installing them (if necessary) and then loading them.
 
 ```{r load_pkgs, message = FALSE, warning = FALSE}
 if(!require("here")) {
@@ -67,9 +62,10 @@ We also need a couple of helper functions.
 
 ```{r define_funcs}
 ## better round
-Re2prec <- function(x, map = "round", prec = 1) {
-  ## 'map' can be "round", "floor", or "ceiling"
-  ## 'prec' is nearest value (eg, 0.1 means to nearest tenth; 1 gives normal behavior)
+Re2prec <- function(x, fun = "round", prec = 1) {
+  ## 'fun' can be "round", "floor", or "ceiling"
+  ## 'prec' is nearest value
+  ## (eg, 0.1 is to nearest tenth; 1 is to nearest integer)
   if(prec<=0) { stop("\"prec\" cannot be less than or equal to 0") }
   do.call(map,list(x/prec))*prec
 }
@@ -87,6 +83,7 @@ fit_jags <- function(model, data, params, inits, ctrl, dir = jagsdir) {
 ```
 
 # User inputs
+
 We begin by supplying values for the following parameters, which we need for model fitting and evaluation.
 
 ```{r get_user_inputs}
@@ -128,6 +125,7 @@ fn_harv <- "skagit_sthd_catch.csv"
 ```
 
 # Loading the fish data
+
 Here we load in the first three data files and do some simple calculations and manipulations. First the spawner data:
 
 ```{r get_escapement_data}
@@ -154,7 +152,8 @@ A <- age_max - age_min + 1
 if(n_fore > 0) {
   dat_age <- rbind(dat_age,
                    matrix(0, n_fore, A,
-                          dimnames = list(n_yrs+seq(n_fore),colnames(dat_age))))
+                          dimnames = list(n_yrs+seq(n_fore),
+                                          colnames(dat_age))))
 }
 ## total num of age obs by cal yr
 dat_age[,"sum"] <- apply(dat_age, 1, sum)
@@ -865,7 +864,7 @@ Before fitting the model in JAGS, we need to specify:
 3. the MCMC control parameters.
 
 ```{r jags_setup}
-## 1. Data to pass to JAGS
+## 1. Data to pass to JAGS:
 dat_jags <- list(dat_age = dat_age,
                  ln_dat_esc = ln_dat_esc,
                  dat_harv = dat_harv,
@@ -876,11 +875,12 @@ dat_jags <- list(dat_age = dat_age,
                  n_yrs = n_yrs,
                  n_fore = n_fore) 
 
-## 2. Model params/states for JAGS to return
+## 2. Model params/states for JAGS to return:
+##
 ##    These are specific to the process model,
 ##    so we define them in 'par_jags' below.
 
-## 3. MCMC control params
+## 3. MCMC control params:
 mcmc_ctrl <- list(
   chains = 4,
   length = 5e5,
@@ -1088,7 +1088,7 @@ cc_smry
 
 # Model selection
 
-Via `loo()` and `compare()` with full table of results.
+Via `loo()` and `compare()` with full table of results. Note that `elpd_diff` will be negative (positive) if the expected predictive accuracy for the first (second) model is higher.
 
 ```{r get_LOOIC_c, fig.height=8, fig.width=6, warning=FALSE, cache=FALSE}
 par(mfrow=c(4,1), mai=c(0.6,0.6,0.1,0.1), omi=rep(0,4))
@@ -1122,7 +1122,8 @@ tbl_LOO_both <- cbind(model = rep(c("Ricker","B-H"),2),
 tbl_LOO_both[order(tbl_LOO_both[,"looic"]), ]
 
 ## LOOIC for all data (pairwise)
-## `elpd_diff` will be pos (neg) if the expected predictive accuracy for the second (first) model is higher.
+## `elpd_diff` will be neg (pos) if the expected predictive accuracy
+## for the first (second) model is higher.
 ## Ricker without vs with covariates
 compare(LOO_both[[1]], LOO_both[[3]])
 ## BH without vs with covariates
@@ -1182,10 +1183,4 @@ gelman.diag(best_fit[,par_conv])
 t(round(autocorr.diag(best_fit[,par_conv],
                       lags = seq(mcmc_ctrl$thin, 4*mcmc_ctrl$thin, mcmc_ctrl$thin),
                       relative=FALSE), 2))
-```
-
-These diagnostics look pretty good, so we'll save the output for this model.
-
-```{r save_model, eval=FALSE}
-save(best_fit, file = file.path(analdir, "best_fit.rda"))
 ```
