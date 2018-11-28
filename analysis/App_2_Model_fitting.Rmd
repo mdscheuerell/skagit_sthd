@@ -58,6 +58,7 @@ if(!require("ggplot2")) {
 datadir <- here("data")
 jagsdir <- here("jags")
 analdir <- here("analysis")
+savedir <- here("analysis/cache")
 ```
 
 We also need a couple of helper functions.
@@ -89,7 +90,7 @@ We begin by supplying values for the following parameters, which we need for mod
 ```{r get_user_inputs}
 ## first & last years of fish data
 yr_frst <- 1978
-yr_last <- 2017
+yr_last <- 2018
 
 ## min & max adult age classes
 age_min <- 3
@@ -347,7 +348,7 @@ model {
     ## obs model for spawners
     # Sp[t] <- max(10,tot_Run[t] - dat_harv[t]);
     est_harv[t] = h_rate[t] * tot_Run[t];
-    dat_harv[t] ~ dlnorm(log(est_harv[t]), 0.05);
+    dat_harv[t] ~ dlnorm(log(est_harv[t]), 20);
     Sp[t] = tot_Run[t] - est_harv[t];
     ln_Sp[t] <- log(Sp[t]);
     ln_dat_esc[t] ~ dnorm(ln_Sp[t], tau_s);
@@ -512,7 +513,7 @@ model {
     ## obs model for spawners
     # Sp[t] <- max(10,tot_Run[t] - dat_harv[t]);
     est_harv[t] = h_rate[t] * tot_Run[t];
-    dat_harv[t] ~ dlnorm(log(est_harv[t]), 0.05);
+    dat_harv[t] ~ dlnorm(log(est_harv[t]), 20);
     Sp[t] = tot_Run[t] - est_harv[t];
     ln_Sp[t] <- log(Sp[t]);
     ln_dat_esc[t] ~ dnorm(ln_Sp[t], tau_s);
@@ -671,7 +672,7 @@ model {
     ## obs model for spawners
     # Sp[t] <- max(10,tot_Run[t] - dat_harv[t]);
     est_harv[t] = h_rate[t] * tot_Run[t];
-    dat_harv[t] ~ dlnorm(log(est_harv[t]), 0.05);
+    dat_harv[t] ~ dlnorm(log(est_harv[t]), 20);
     Sp[t] = tot_Run[t] - est_harv[t];
     ln_Sp[t] <- log(Sp[t]);
     ln_dat_esc[t] ~ dnorm(ln_Sp[t], tau_s);
@@ -835,7 +836,7 @@ model {
     ## obs model for spawners
     # Sp[t] <- max(10,tot_Run[t] - dat_harv[t]);
     est_harv[t] = h_rate[t] * tot_Run[t];
-    dat_harv[t] ~ dlnorm(log(est_harv[t]), 0.05);
+    dat_harv[t] ~ dlnorm(log(est_harv[t]), 20);
     Sp[t] = tot_Run[t] - est_harv[t];
     ln_Sp[t] <- log(Sp[t]);
     ln_dat_esc[t] ~ dnorm(ln_Sp[t], tau_s);
@@ -917,7 +918,7 @@ init_vals_AR <- function() {
 
 ### Ricker
 
-```{r fit_Ricker_base, message = FALSE, warning = FALSE, cache = TRUE}
+```{r fit_Ricker_base, message = FALSE, warning = FALSE, cache = FALSE}
 ## params/states to return
 par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
               "beta",
@@ -925,8 +926,13 @@ par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
               "pi_eta","pi_tau",
               "sigma_r","sigma_s","res_ln_Rec",
               "lp_age","lp_esc")
-## fit model
-mod_fits[[1]] <- fit_jags("IPM_RK_AR.txt", dat_jags, par_jags, init_vals_AR, mcmc_ctrl)
+## if file exists, load it
+if(file.exists(file.path(savedir, "fit_ricker_base.rds"))) {
+  mod_fits[[1]] <- readRDS(file.path(savedir, "fit_ricker_base.rds"))
+} else { ## else, fit & save
+  mod_fits[[1]] <- fit_jags("IPM_RK_AR.txt", dat_jags, par_jags, init_vals_AR, mcmc_ctrl)
+  saveRDS(mod_fits[[1]], file.path(savedir, "fit_ricker_base.rds"))
+}
 ```
 
 #### Convergence checks
@@ -945,7 +951,7 @@ t(round(autocorr.diag(mod_fits[[1]][,par_conv],
 
 ### Beverton-Holt
 
-```{r fit_BH_base, message = FALSE, warning = FALSE, cache = TRUE}
+```{r fit_BH_base, message = FALSE, warning = FALSE, cache = FALSE}
 ## params/states to return
 par_jags <- c("alpha","E_BH_a","mu_BH_a",
               "beta",
@@ -953,8 +959,13 @@ par_jags <- c("alpha","E_BH_a","mu_BH_a",
               "pi_eta","pi_tau",
               "sigma_r","sigma_s","res_ln_Rec",
               "lp_age","lp_esc")
-## fit model
-mod_fits[[2]] <- fit_jags("IPM_BH_AR.txt", dat_jags, par_jags, init_vals_AR, mcmc_ctrl)
+## if file exists, load it
+if(file.exists(file.path(savedir, "fit_bh_base.rds"))) {
+  mod_fits[[2]] <- readRDS(file.path(savedir, "fit_bh_base.rds"))
+} else { ## else, fit & save
+  mod_fits[[2]] <- fit_jags("IPM_BH_AR.txt", dat_jags, par_jags, init_vals_AR, mcmc_ctrl)
+  saveRDS(mod_fits[[2]], file.path(savedir, "fit_bh_base.rds"))
+}
 ```
 
 #### Convergence checks
@@ -976,19 +987,19 @@ Now we fit the models that include covariates. Here is the `inits` function for 
 ```{r inits_cov}
 ## function for inits
 init_vals_cov <- function() {
-	list(alpha = 5,
-	     beta_inv = exp(mean(ln_dat_esc, na.rm = TRUE)),
-	     gamma = rep(0, n_mods),
-	     pi_tau = 10,
-	     pi_eta = rep(1,A),
-	     pi_vec = matrix(c(0.01,0.35,0.47,0.15,0.01,0.01),
-	                     n_yrs-age_min+n_fore, A, 
-	                     byrow = TRUE),
-	     Rec_mu = log(1000),
-	     Rec_sig = 0.1,
-	     tot_ln_Rec = rep(log(1000), n_yrs - age_min + n_fore),
-	     # phi = 0.5,
-	     innov_1 = 0)
+  list(alpha = 5,
+       beta_inv = exp(mean(ln_dat_esc, na.rm = TRUE)),
+       gamma = rep(0, n_mods),
+       pi_tau = 10,
+       pi_eta = rep(1,A),
+       pi_vec = matrix(c(0.01,0.35,0.47,0.15,0.01,0.01),
+                       n_yrs-age_min+n_fore, A, 
+                       byrow = TRUE),
+       Rec_mu = log(1000),
+       Rec_sig = 0.1,
+       tot_ln_Rec = rep(log(1000), n_yrs - age_min + n_fore),
+       # phi = 0.5,
+       innov_1 = 0)
 }
 
 ## set of multi-covariate models
@@ -999,7 +1010,7 @@ dat_jags$mod_cvrs <- scl_cvrs[, cset]
 
 ## Ricker
 
-```{r fit_Ricker_cov, message = FALSE, warning = FALSE, cache = TRUE, eval=TRUE}
+```{r fit_Ricker_cov, message = FALSE, warning = FALSE, cache = FALSE, eval=TRUE}
 ## params/states to return
 par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
               "beta",
@@ -1009,14 +1020,19 @@ par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
               "sigma_r","sigma_s","res_ln_Rec",
               "lp_age","lp_esc")
 
-## Ricker with cov
-mod_fits[[3]] <- fit_jags("IPM_RK_cov_AR.txt", dat_jags, par_jags,
-                          init_vals_cov, mcmc_ctrl)
+## if file exists, load it
+if(file.exists(file.path(savedir, "fit_ricker_cov.rds"))) {
+  mod_fits[[3]] <- readRDS(file.path(savedir, "fit_ricker_cov.rds"))
+} else { ## else, fit & save
+  mod_fits[[3]] <- fit_jags("IPM_RK_cov_AR.txt", dat_jags, par_jags,
+                            init_vals_cov, mcmc_ctrl)
+  saveRDS(mod_fits[[3]], file.path(savedir, "fit_ricker_cov.rds"))
+}
 ```
 
 ## Beverton-Holt
 
-```{r fit_BH_cov, message = FALSE, warning = FALSE, cache = TRUE, eval=TRUE}
+```{r fit_BH_cov, message = FALSE, warning = FALSE, cache = FALSE, eval=TRUE}
 ## params/states to return
 par_jags <- c("alpha","E_BH_a","ln_BH_a",
               "beta",
@@ -1026,9 +1042,14 @@ par_jags <- c("alpha","E_BH_a","ln_BH_a",
               "sigma_r","sigma_s","res_ln_Rec",
               "lp_age","lp_esc")
 
-## B-H with cov
-mod_fits[[4]] <- fit_jags("IPM_BH_cov_AR.txt", dat_jags, par_jags,
-                          init_vals_cov, mcmc_ctrl)
+## if file exists, load it
+if(file.exists(file.path(savedir, "fit_bh_cov.rds"))) {
+  mod_fits[[4]] <- readRDS(file.path(savedir, "fit_bh_cov.rds"))
+} else { ## else, fit & save
+  mod_fits[[4]] <- fit_jags("IPM_BH_cov_AR.txt", dat_jags, par_jags,
+                            init_vals_cov, mcmc_ctrl)
+  saveRDS(mod_fits[[4]], file.path(savedir, "fit_bh_cov.rds"))
+}
 ```
 
 ```{r stop_timer, include = FALSE}
