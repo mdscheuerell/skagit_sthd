@@ -1126,7 +1126,7 @@ Via `loo()` and `compare()` with full table of results. Note that `elpd_diff` wi
 
 ```{r get_LOOIC_c, fig.height=8, fig.width=6, warning=FALSE, cache=FALSE}
 par(mfrow=c(4,1), mai=c(0.6,0.6,0.1,0.1), omi=rep(0,4))
-LOO_both <- LOO_age <- LOO_esc <- vector("list", n_mods)
+LOOIC <- vector("list", n_mods)
 ## extract log densities from JAGS objects
 for(i in 1:n_mods) {
   ## convert mcmc.list to matrix
@@ -1140,66 +1140,30 @@ for(i in 1:n_mods) {
     tmp_lp[is.na(tmp_lp)] <- tmp_min * 1.05
   }
   ## calculate LOOIC
-  LOO_both[[i]] <- loo(tmp_lp)
-  plot(LOO_both[[i]], main="")
-  LOO_age[[i]] <- loo(tmp_lp[,grep("age",colnames(tmp_lp))])
-  LOO_esc[[i]] <- loo(tmp_lp[,grep("esc",colnames(tmp_lp))])
+  LOOIC[[i]] <- loo(tmp_lp)
+  plot(LOOIC[[i]], main="")
 }
 
 ## LOOIC for all data
-tbl_LOO_both <- round(compare(x = LOO_both), 2)
-rownames(tbl_LOO_both) <- sub("model", "", rownames(tbl_LOO_both))
-tbl_LOO_both <- tbl_LOO_both[order(as.numeric(rownames(tbl_LOO_both))), ]
-tbl_LOO_both <- cbind(model = rep(c("Ricker","B-H"),2),
-                      covar = rep(c("No","Yes"),ea=2),
-                      as.data.frame(tbl_LOO_both))
-tbl_LOO_both[order(tbl_LOO_both[,"looic"]), ]
+tbl_LOOIC <- round(compare(x = LOOIC), 2)
+rownames(tbl_LOOIC) <- sub("model", "", rownames(tbl_LOOIC))
+tbl_LOOIC <- tbl_LOOIC[order(as.numeric(rownames(tbl_LOOIC))), ]
+tbl_LOOIC <- cbind(model = rep(c("Ricker","B-H"),2),
+                   covar = rep(c("No","Yes"),ea=2),
+                   as.data.frame(tbl_LOOIC))
+tbl_LOOIC[order(tbl_LOOIC[,"looic"]), ]
 
 ## LOOIC for all data (pairwise)
 ## `elpd_diff` will be neg (pos) if the expected predictive accuracy
 ## for the first (second) model is higher.
 ## Ricker without vs with covariates
-compare(LOO_both[[1]], LOO_both[[3]])
+compare(LOOIC[[1]], LOOIC[[3]])
 ## BH without vs with covariates
-compare(LOO_both[[2]], LOO_both[[4]])
+compare(LOOIC[[2]], LOOIC[[4]])
 ## Ricker to BH (without covariates)
-compare(LOO_both[[1]], LOO_both[[2]])
+compare(LOOIC[[1]], LOOIC[[2]])
 ## Ricker to BH (with covariates)
-compare(LOO_both[[3]], LOO_both[[4]])
-
-## LOOIC for age data only
-tbl_LOO_age <- round(compare(x = LOO_age), 2)
-rownames(tbl_LOO_age) <- sub("model", "", rownames(tbl_LOO_age))
-tbl_LOO_age <- tbl_LOO_age[order(as.numeric(rownames(tbl_LOO_age))), ]
-tbl_LOO_age <- cbind(model = rep(c("Ricker","B-H"),2),
-                     covar = rep(c("No","Yes"),ea=2),
-                     as.data.frame(tbl_LOO_age))
-tbl_LOO_age[order(tbl_LOO_age[,"looic"]), ]
-
-## LOOIC for escapement data only
-tbl_LOO_esc <- round(compare(x = LOO_esc), 2)
-rownames(tbl_LOO_esc) <- sub("model", "", rownames(tbl_LOO_esc))
-tbl_LOO_esc <- tbl_LOO_esc[order(as.numeric(rownames(tbl_LOO_esc))), ]
-tbl_LOO_esc <- cbind(model = rep(c("Ricker","B-H"),2),
-                     covar = rep(c("No","Yes"),ea=2),
-                     as.data.frame(tbl_LOO_esc))
-tbl_LOO_esc[order(tbl_LOO_esc[,"looic"]), ]
-```
-
-## Distribution of pointwise likelihoods
-
-At the moment this is for the Beverton-Holt model with covariates.
-
-```{r lp_violins, fig.height=4, fig.width=7}
-## base plot
-tidy_lp <- tidyr::gather(data.frame(tmp_lp), key = time, value = lp)
-pp <- ggplot(tidy_lp, aes(x=time, y=lp)) +
-  labs(title = "", x = "Data element", y = "Pointwise likelihood") + 
-  theme(axis.text.x = element_blank(),
-        axis.ticks.x = element_blank())
-## violin plot
-p1 <- pp + geom_violin()
-p1
+compare(LOOIC[[3]], LOOIC[[4]])
 ```
 
 ## Model diagnostics
