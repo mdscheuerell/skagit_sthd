@@ -18,9 +18,11 @@ knitr::opts_chunk$set(message = FALSE)
 
 This is version `r paste0('0.',format(Sys.time(), '%y.%m.%d'))`.
 
-# Requirements
+# Background
 
-All analyses require the [R software](https://cran.r-project.org/) (v3.4.3) for data retrieval and processing. We also need the __readr__ and __here__ packages, which are not included with the base installation of R.
+This appendix describes how to retrieve the environmental covariates used in our analyses. After reading in the raw data, summarizing them (if necessary), and trimming them to the appropriate time frame, they table of covariates is written to a `.csv` file.
+
+All of the analyses require the [R software](https://cran.r-project.org/) (v3.4.3 or later) for data retrieval and processing. We also need the __readr__ and __here__ packages, which are not included with the base installation of __R__.
 
 ```{r load_pkgs, message = FALSE, warning = FALSE}
 if(!require("readr")) {
@@ -36,6 +38,7 @@ datadir <- here("data")
 ```
 
 # User inputs
+
 We begin by supplying values for the following parameters, which we use for trimming and lagging the covariates to the appropriate years.
 
 ```{r get_user_inputs}
@@ -43,7 +46,7 @@ We begin by supplying values for the following parameters, which we use for trim
 yr_frst <- 1978
 yr_last <- 2018
 
-## min & max adult age classes
+## min & max adult ages (years)
 age_min <- 3
 age_max <- 8
 
@@ -58,7 +61,7 @@ n_fore <- 0
 
 # Retrieve covariates
 
-Our analysis investigates 5 covariates as possible drivers of the population's instrinic growth rate:
+Our analysis investigates 4 covariates as possible drivers of the population's instrinic growth rate:
 
 1. Maximum river discharge in winter;
 2. Minimum river discharge in summer;
@@ -96,8 +99,12 @@ Lastly, we extract the actual flow data for the years of interest and inspect th
 
 ```{r get_flows, cache=TRUE}
 ## flow data for years of interest
-dat_flow <-  read_tsv(flow_url, col_names = FALSE, col_types = "ciDdc", skip = max(hdr_flow)+2)
-colnames(dat_flow) <- unlist(strsplit(tolower(flow_raw[max(hdr_flow)+1]), split = "\\s+"))
+dat_flow <-  read_tsv(flow_url,
+                      col_names = FALSE,
+                      col_types = "ciDdc",
+                      skip = max(hdr_flow)+2)
+colnames(dat_flow) <- unlist(strsplit(tolower(flow_raw[max(hdr_flow)+1]),
+                                      split = "\\s+"))
 head(dat_flow)
 ```
 
@@ -125,11 +132,13 @@ We are interested in the maximum of the daily peak flows from October through Ma
 flow_aut <- subset(dat_flow, (month>=10 & month<=12)
                    & year >= yr_frst & year <= yr_last-age_min+n_fore)
 ## spring flows in year t+1
-flow_spr <- subset(dat_flow, (month>=1 & month<=3)
-                   & year >= yr_frst+flow_lag & year <= yr_last-age_min+n_fore+flow_lag)
+flow_spr <- subset(dat_flow,
+                   (month>=1 & month<=3)
+                   & year >= yr_frst+flow_lag
+                   & year <= yr_last-age_min+n_fore+flow_lag)
 ## change spr year index to match aut
 flow_spr[,"year"] <- flow_spr[,"year"] - flow_lag
-## combined flows indexed to brood year and calculate max flow over time period
+## combined flows indexed to brood year & calculate max flow
 dat_flow_wtr <- aggregate(flow ~ year, data = rbind(flow_aut,flow_spr), max)
 dat_flow_wtr[,"flow"] <- round(dat_flow_wtr[,"flow"], 1) 
 ## change year index to brood year
@@ -145,10 +154,11 @@ Retrieving the minimum flow juveniles would experience during their first summer
 ```{r sum_flow, cache=TRUE}
 ## summer flows in year t
 flow_sum <- subset(dat_flow, (month>=6 & month<=9)
-                   & year >= yr_frst+flow_lag & year <= yr_last-age_min+n_fore+flow_lag)
+                   & year >= yr_frst+flow_lag
+                   & year <= yr_last-age_min+n_fore+flow_lag)
 ## change year index to brood year
 flow_sum[,"year"] <- flow_sum[,"year"] - flow_lag
-## combined flows indexed to brood year and calculate max flow over time period
+## combined flows indexed to brood year & calculate min flow
 dat_flow_sum <- aggregate(flow ~ year, data = flow_sum, min)
 dat_flow_sum <- round(dat_flow_sum, 2)
 ## for plotting purpose later
@@ -183,8 +193,9 @@ colnames(dat_NPGO) <- c("year","month","NPGO")
 ## select only years of interest indexed by brood year 
 dat_NPGO <- dat_NPGO[dat_NPGO$year >= yr_frst+marine_lag &
                      dat_NPGO$year <= yr_last-age_min+n_fore+marine_lag,]
-dat_NPGO <- aggregate(dat_NPGO$NPGO, by = list(year = dat_NPGO$year), FUN = mean)
-dat_NPGO <- data.frame(year = seq(yr_frst,yr_last-age_min+n_fore), NPGO = dat_NPGO[,2])
+dat_NPGO <- aggregate(dat_NPGO$NPGO, by = list(year = dat_NPGO$year), mean)
+dat_NPGO <- data.frame(year = seq(yr_frst,yr_last-age_min+n_fore),
+                       NPGO = dat_NPGO[,2])
 dat_NPGO[,"NPGO"] <- round(dat_NPGO[,"NPGO"], 2)
 ```
 
