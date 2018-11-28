@@ -286,6 +286,22 @@ for(i in 1:n_cov) {
 }
 ```
 
+### Effect sizes
+
+```{r tbl_effect_sizes}
+## table of effect sizes 
+cc_smry <- data.frame(covariate = cset,
+                      lo = rep(NA, n_mods),
+                      med = rep(NA, n_mods),
+                      up = rep(NA, n_mods))
+ff <- do.call(rbind, best_fit)
+cc_smry[,2:4] <- t(apply(ff[,grep("gamma", colnames(ff))], 2, quantile, c(0.025,0.5,0.975)))
+## print table
+cc_smry[,-1] <- round(cc_smry[,-1], 2)
+cc_smry
+```
+
+
 ## Total population size
 
 Here is our estimate of the total run size (i.e., catch + escapement) over time, which includes a forecast for `r yr_last+n_fore`. The black points are the data, the blue line is the median posterior estimate, and the shaded region is the 95% credible interval. Note that the y-axis is on a log scale.
