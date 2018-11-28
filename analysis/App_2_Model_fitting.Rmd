@@ -853,7 +853,7 @@ model {
 ", file=file.path(jagsdir, "IPM_BH_cov_AR.txt"))
 ```
 
-***
+
 
 # Fitting the models
 
@@ -924,7 +924,19 @@ init_vals_AR <- function() {
 
 ### Ricker
 
-```{r fit_Ricker_base, message = FALSE, warning = FALSE, cache = FALSE}
+```{r fit_Ricker_base_show, eval = FALSE, warning = FALSE, cache = FALSE}
+## params/states to return
+par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
+              "beta",
+              "Sp","Rec","tot_ln_Rec","ln_RS",
+              "pi_eta","pi_tau",
+              "sigma_r","sigma_s","res_ln_Rec",
+              "lp_age","lp_esc")
+## fit model & save it
+mod_fits[[1]] <- fit_jags("IPM_RK_AR.txt", dat_jags, par_jags, init_vals_AR, mcmc_ctrl)
+```
+
+```{r fit_Ricker_base, echo = FALSE, message = FALSE, warning = FALSE, cache = FALSE}
 ## params/states to return
 par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
               "beta",
@@ -944,7 +956,9 @@ if(file.exists(file.path(savedir, "fit_ricker_base.rds"))) {
 #### Convergence checks
 
 ```{r diag_Ricker}
-par_conv <- c("alpha","beta","sigma_r","sigma_s","pi_tau",paste0("pi_eta[",seq(A-1),"]"))
+par_conv <- c("alpha", "beta",
+              "sigma_r", "sigma_s",
+              "pi_tau", paste0("pi_eta[",seq(A-1),"]"))
 
 ## Gelman-Rubin
 gelman.diag(mod_fits[[1]][,par_conv])
@@ -957,7 +971,19 @@ t(round(autocorr.diag(mod_fits[[1]][,par_conv],
 
 ### Beverton-Holt
 
-```{r fit_BH_base, message = FALSE, warning = FALSE, cache = FALSE}
+```{r fit_BH_base_show, eval = FALSE, message = FALSE, warning = FALSE, cache = FALSE}
+## params/states to return
+par_jags <- c("alpha","E_BH_a","mu_BH_a",
+              "beta",
+              "Sp","Rec","tot_ln_Rec","ln_RS",
+              "pi_eta","pi_tau",
+              "sigma_r","sigma_s","res_ln_Rec",
+              "lp_age","lp_esc")
+## fit model & save it
+mod_fits[[2]] <- fit_jags("IPM_BH_AR.txt", dat_jags, par_jags, init_vals_AR, mcmc_ctrl)
+```
+
+```{r fit_BH_base, echo = FALSE, message = FALSE, warning = FALSE, cache = FALSE}
 ## params/states to return
 par_jags <- c("alpha","E_BH_a","mu_BH_a",
               "beta",
@@ -1016,7 +1042,22 @@ dat_jags$mod_cvrs <- scl_cvrs[, cset]
 
 ### Ricker
 
-```{r fit_Ricker_cov, message = FALSE, warning = FALSE, cache = FALSE, eval=TRUE}
+```{r fit_Ricker_cov_show, eval = FALSE, message = FALSE, warning = FALSE, cache = FALSE}
+## params/states to return
+par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
+              "beta",
+              "gamma",
+              "Sp","Rec","tot_ln_Rec","ln_RS",
+              "pi_eta","pi_tau",
+              "sigma_r","sigma_s","res_ln_Rec",
+              "lp_age","lp_esc")
+
+## fit model & save it
+mod_fits[[3]] <- fit_jags("IPM_RK_cov_AR.txt", dat_jags, par_jags,
+                          init_vals_cov, mcmc_ctrl)
+```
+
+```{r fit_Ricker_cov, echo = FALSE, message = FALSE, warning = FALSE, cache = FALSE, eval=TRUE}
 ## params/states to return
 par_jags <- c("alpha","E_Rkr_a","mu_Rkr_a",
               "beta",
@@ -1038,7 +1079,22 @@ if(file.exists(file.path(savedir, "fit_ricker_cov.rds"))) {
 
 ### Beverton-Holt
 
-```{r fit_BH_cov, message = FALSE, warning = FALSE, cache = FALSE, eval=TRUE}
+```{r fit_BH_cov_show, eval = FALSE, message = FALSE, warning = FALSE, cache = FALSE}
+## params/states to return
+par_jags <- c("alpha","E_BH_a","ln_BH_a",
+              "beta",
+              "gamma",
+              "Sp","Rec","tot_ln_Rec","ln_RS",
+              "pi_eta","pi_tau",
+              "sigma_r","sigma_s","res_ln_Rec",
+              "lp_age","lp_esc")
+
+## fit model & save it
+mod_fits[[4]] <- fit_jags("IPM_BH_cov_AR.txt", dat_jags, par_jags,
+                          init_vals_cov, mcmc_ctrl)
+```
+
+```{r fit_BH_cov, echo = FALSE, message = FALSE, warning = FALSE, cache = FALSE, eval=TRUE}
 ## params/states to return
 par_jags <- c("alpha","E_BH_a","ln_BH_a",
               "beta",
@@ -1062,28 +1118,6 @@ if(file.exists(file.path(savedir, "fit_bh_cov.rds"))) {
 ## stop timer
 run_time_in_min <- round(((proc.time()-timer_start)/60)["elapsed"], 1)
 cat(run_time_in_min, file = "run_time_in_min.txt")
-```
-
-# Effect sizes
-
-```{r tbl_effect_sizes}
-## table of effect sizes 
-cc_smry <- data.frame(covariate = cset,
-                      R_lo = rep(NA, n_mods),
-                      R_med = rep(NA, n_mods),
-                      R_up = rep(NA, n_mods),
-                      BH_lo = rep(NA, n_mods),
-                      BH_med = rep(NA, n_mods),
-                      BH_up = rep(NA, n_mods))
-## Ricker
-RR <- do.call(rbind, mod_fits[[3]])
-cc_smry[,2:4] <- t(apply(RR[,grep("gamma", colnames(RR))], 2, quantile, c(0.025,0.5,0.975)))
-## B-H
-BH <- do.call(rbind, mod_fits[[4]])
-cc_smry[,5:7] <- t(apply(BH[,grep("gamma", colnames(BH))], 2, quantile, c(0.025,0.5,0.975)))
-## print table
-cc_smry[,-1] <- round(cc_smry[,-1], 2)
-cc_smry
 ```
 
 # Model selection
