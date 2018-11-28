@@ -1,15 +1,17 @@
 ---
 title: Appendix S3. Summary of model results.
 output:
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
   html_document:
     fig_caption: yes
     theme: cerulean
     toc: yes
     toc_depth: 3
     toc_float: yes
-  pdf_document:
-    toc: yes
-    toc_depth: '3'
+fontsize: 10pt
+geometry: margin=1in
 ---
 
 ***
@@ -108,7 +110,7 @@ dat_harv <- read_csv(file.path(datadir, "skagit_sthd_catch.csv"))
 dat_harv <- c(dat_harv$catch, rep(0,n_fore))
 ```
 
-## Main results
+# Main results
 
 Here is a table of summary statistics for some of the model parameters.
 
@@ -129,7 +131,7 @@ Now we need to convert the `mcmc.list` output into a more user-friendly form for
 mod_res <- do.call("rbind", best_fit)
 ```
 
-### Spawner-recruit relationship
+## Spawner-recruit relationship
 
 Here is the relationship between spawner and subsequent recruits (a), assuming mean values for all covariates. Gray lines show the median relationship for each of the `r n_yrs` years based on $a_t$. Note that for plotting purposes only in (b) and (c), the density in the largest bin for each parameter contains counts for all values greater or equal to that. Vertical arrows under the x-axes in (b) and (c) indicate the 2.5^th^, 50^th^, and 97.5^th^ percentiles.
 
@@ -155,24 +157,33 @@ yM <- Re2prec(max(rDat),"ceiling",dd)
 #yM <- 30000
 xM <- Re2prec(max(sDat),"ceiling",dd)
 par(mai = c(0.8,0.8,0.1,0.1), omi = c(0,0,0,0))
-plot(sDat[2,], rDat[2,], xlim = c(0,xM), ylim = c(0,yM), pch = 16, col = "blue3", type = "n",
-     xaxs = "i", yaxs = "i", ylab = "Recruits (1000s)", xlab = "Spawners (1000s)", cex.lab = 1.2,
+plot(sDat[2,], rDat[2,], xlim = c(0,xM), ylim = c(0,yM), type = "n",
+     xaxs = "i", yaxs = "i",
+     xlab = "Spawners (1000s)", ylab = "Recruits (1000s)", cex.lab = 1.2,
      xaxt = "n", yaxt = "n")
 axis(1, at = seq(0,xM,dd*2), labels = seq(0,xM,dd*2)/1000)
 axis(2, at = seq(0,yM,dd*2), labels = seq(0,yM,dd*2)/1000, las=1)
-for(i in 1:length(aa)) { lines(exp(aa[i])*seq(0,xM)/(1+bb*seq(0,xM)), col = "darkgray") }
-# for(i in 1:length(aa)) { lines(seq(xM)*exp(aa[i]-bb*seq(xM)), col = "darkgray") }
+for(i in 1:length(aa)) {
+  lines(exp(aa[i])*seq(0,xM)/(1+bb*seq(0,xM)), col = "darkgray")
+  }
 abline(a = 0,b = 1,lty = "dashed")
 
 ## add S-R estimates and medians
 nCB <- n_yrs-age_max
-points(sDat[2,1:nCB],rDat[2,1:nCB], xlim = c(0,xM), ylim = c(0,yM), pch = 16, col = "blue3")
+points(sDat[2,1:nCB],rDat[2,1:nCB],
+       xlim = c(0,xM), ylim = c(0,yM), pch = 16, col = "blue3")
 segments(sDat[2,1:nCB],rDat[1,1:nCB],sDat[2,1:nCB],rDat[3,1:nCB], col = "blue3")
 segments(sDat[1,1:nCB],rDat[2,1:nCB],sDat[3,1:nCB],rDat[2,1:nCB], col = "blue3")
 nTB <- dim(sDat)[2]
-clr <- rgb(100, 0, 200, alpha = seq(200,100,length.out = age_max-age_min+n_fore), maxColorValue = 255)
-segments(sDat[2,(nCB+1):nTB],rDat[1,(nCB+1):nTB],sDat[2,(nCB+1):nTB],rDat[3,(nCB+1):nTB], col = clr)
-segments(sDat[1,(nCB+1):nTB],rDat[2,(nCB+1):nTB],sDat[3,(nCB+1):nTB],rDat[2,(nCB+1):nTB], col = clr)
+clr <- rgb(100, 0, 200,
+           alpha = seq(200,100,length.out = age_max-age_min+n_fore),
+           maxColorValue = 255)
+segments(sDat[2,(nCB+1):nTB],rDat[1,(nCB+1):nTB],
+         sDat[2,(nCB+1):nTB],rDat[3,(nCB+1):nTB],
+         col = clr)
+segments(sDat[1,(nCB+1):nTB],rDat[2,(nCB+1):nTB],
+         sDat[3,(nCB+1):nTB],rDat[2,(nCB+1):nTB],
+         col = clr)
 points(sDat[2,(nCB+1):nTB],rDat[2,(nCB+1):nTB],
        xlim = c(0,xM), ylim = c(0,yM), pch = 16, col = clr)
 text(x = par()$usr[1]+par()$pin[2]/par()$pin[1]*offSet*diff(par()$usr[1:2]),
@@ -194,7 +205,8 @@ arrows(alphaCI,par()$usr[3],alphaCI,par()$usr[3]-aHt,
        code = 1,length = 0.05,xpd = NA,col = "blue3",lwd = 1.5)
 mtext(expression(Instrinsic~productivity~(alpha)), 1, line = 3, cex = 1)
 text(x = par()$usr[1]+par()$pin[2]/par()$pin[1]*offSet*diff(par()$usr[1:2]),
-     y = par()$usr[4]-offSet*diff(par()$usr[3:4]),"(b)")
+     y = par()$usr[4]*1.05,
+     "(b)", xpd=NA)
 
 ## posterior for K
 par(mai = c(0.8,0.4,0.3,0.1))
@@ -218,11 +230,12 @@ arrows(R_b_CI,par()$usr[3],R_b_CI,par()$usr[3]-aHt,
        code = 1,length = 0.05,xpd = NA,col = "blue3",lwd = 1.5)
 mtext(expression(Carrying~capacity~(italic(K))), 1, line = 3, cex = 1)
 text(x = par()$usr[1]+par()$pin[2]/par()$pin[1]*offSet*diff(par()$usr[1:2]),
-     y = par()$usr[4]-offSet*diff(par()$usr[3:4]),"(c)")
+     y = par()$usr[4]*1.05, # -offSet*diff(par()$usr[3:4]),
+     "(c)", xpd=NA)
 ```
 
 
-### Covariate effects
+## Covariate effects
 
 Here are time series plots of the covariates (a-c) and histograms of their effects on productivity (d-f).
 
@@ -251,7 +264,9 @@ for(i in 1:n_cov) {
 	plot(dat_cvrs[,"year"], dat_cvrs[,i+1], xlab="", ylab="",
 		 main="", cex.axis=1.2, pch=16, col="blue3", type="o")
 	text(x=par()$usr[1]+par()$pin[2]/par()$pin[1]*offSet*diff(par()$usr[1:2]),
-	     y=par()$usr[4]-offSet*diff(par()$usr[3:4]),paste0("(",letters[i],")"), cex=1.2)
+	     y=par()$usr[4]-offSet*diff(par()$usr[3:4]),
+	     paste0("(",letters[i],")"),
+	     cex=1.2)
 	mtext(side=2, cov_names[i], line=3, cex=1.2)
 	if(i==n_cov) { mtext(side=1,"Brood year", line=3) }
 	## plot covar effect
@@ -263,13 +278,15 @@ for(i in 1:n_cov) {
 	arrows(c_CI,par()$usr[3]-0.005,c_CI,par()$usr[3]-aHt,
 	       code=1,length=0.05,xpd=NA,col="blue3",lwd=1.5)
 	abline(v=0, lty="dashed")
-	text(x=par()$usr[1]+par()$pin[2]/par()$pin[1]*offSet*diff(par()$usr[1:2]), cex=1.2,
-	     y=par()$usr[4]-offSet*diff(par()$usr[3:4]),paste0("(",letters[i+n_cov],")"))
+	text(x=par()$usr[1]+par()$pin[2]/par()$pin[1]*offSet*diff(par()$usr[1:2]),
+	     y=par()$usr[4]-offSet*diff(par()$usr[3:4]),
+	     paste0("(",letters[i+n_cov],")"),
+	     cex=1.2)
 	if(i==n_cov) { mtext(side=1,"Effect size", line=3) }
 }
 ```
 
-### Total population size
+## Total population size
 
 Here is our estimate of the total run size (i.e., catch + escapement) over time, which includes a forecast for `r yr_last+n_fore`. The black points are the data, the blue line is the median posterior estimate, and the shaded region is the 95% credible interval. Note that the y-axis is on a log scale.
 
@@ -281,7 +298,8 @@ t_idx_f <- seq(yr_frst, length.out = n_yrs+n_fore)
 ypMin <- min(pDat)
 ypMax <- max(pDat)
 par(mai = c(0.8,0.8,0.1,0.1), omi = c(0.5,0.2,0.1,0.2))
-plot(t_idx_f, pDat[3,], ylim = c(ypMin,ypMax), type = "n", log = "y", xaxt = "n", yaxt = "n",
+plot(t_idx_f, pDat[3,], ylim = c(ypMin,ypMax), type = "n",
+     log = "y", xaxt = "n", yaxt = "n",
 xlab = "Year", ylab = "Catch + escapement", main = "", cex.lab = 1.2)
 polygon(c(t_idx_f,rev(t_idx_f)),c(pDat[3,],rev(pDat[1,])), col = clr, border = NA)
 lines(t_idx_f, pDat[2,], col = "blue3", lwd = 2)
@@ -290,7 +308,7 @@ axis(1,at = seq(1980,2015,5))
 axis(2,at = c(4000,8000,16000))
 ```
 
-### Innovations
+## Innovations
 
 Here is the time series of the so-called "innovations", which are the residuals from the process model. They give some indication of population productivity after accounting for the effects of density dependence.
 
