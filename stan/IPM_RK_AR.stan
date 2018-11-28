@@ -17,8 +17,6 @@ data {
   int<lower=1> age_min;          
   // maximum adult age
   int<lower=age_min> age_max;
-  // early years to skip
-  int<lower=0> age_skip;
   // number of years to forecast
   int<lower=0> n_fore;          
   // number of missing recruits to impute
@@ -30,7 +28,7 @@ data {
   // observed annual total spawner abundance (not density)
   vector<lower=0>[n_yrs] dat_esc;
   // observed annual spawner age distributions
-  int<lower=0> dat_age[n_yrs-(age_min+age_skip),AA];
+  int<lower=0> dat_age[n_yrs-age_min,AA];
   // total catch of adults (no harvest on jacks)
   vector[n_yrs+n_fore] dat_harv;                         
 }
@@ -54,8 +52,8 @@ parameters {
   real<lower=0.1,upper=50> prec_p;          
   // age distributions by cohort (i.e., brood year)
   simplex[AA] pp[n_yrs-age_min+n_fore];                    
-  // true total spawner abundance in years 1:(age_min+age_skip)
-  vector<lower=0>[age_min+age_skip] S_tot_init;       
+  // true total spawner abundance in years 1:age_min
+  vector<lower=0>[age_min] S_tot_init;       
   // unknown (missing) spawner abundance obs
   vector<lower=0>[max(n_S_NA,1)] dat_esc_NA;    
   // true recruits for early missing broods
@@ -72,7 +70,7 @@ transformed parameters {
   // true total run size
   vector<lower=0>[n_yrs+n_fore] tot_run;           
   // age distribution for calendar year returns
-  simplex[AA] age_props[n_yrs-(age_min+age_skip)];                      
+  simplex[AA] age_props[n_yrs-age_min];                      
   // expected recruits by brood year
   vector<lower=0>[n_yrs-age_min+n_fore] R_tot_hat;
   // true recruits by brood year
@@ -103,7 +101,7 @@ transformed parameters {
     cnt = 0;                     
     
     for(t in 1:(n_yrs+n_fore)) {
-      if(t <= age_min+age_skip) {
+      if(t <= age_min) {
         // 1: early years with no projected recruits
         tot_run[t] = S_tot_init[t];
       }
@@ -131,7 +129,7 @@ transformed parameters {
       // projected calendar-yr age dist
       if(t <= n_yrs) {
         for(a in 1:AA) {
-          age_props[t-age_min-age_skip] = run/tot_run[t];
+          age_props[t-age_min] = run/tot_run[t];
         } 
       }
     }  // end else for middle & late years
@@ -174,10 +172,13 @@ model {
   log_a ~ normal(0,5);
   b ~ normal(0,1);
   phi ~ normal(0,5);
-  S_tot_init ~ normal(0,1e6);
-  R_early ~ normal(0,1e6);
+  prec_p ~ normal(0,50);
+  sigma_proc ~ normal(0,5);
+  sigma_obs ~ normal(0,5);
+  S_tot_init ~ normal(0,5e4);
+  R_early ~ normal(0,5e4);
   if(n_S_NA == 0) {
-    dat_esc_NA ~ normal(0,1e6);
+    dat_esc_NA ~ normal(0,5e4);
   }
   
   // Process models
@@ -199,9 +200,9 @@ model {
   // observed total spawners
   dat_esc_aug ~ lognormal(log(spawners), sigma_obs);
   // observed harvest
-  dat_harv ~ lognormal(log(est_harv), 0.1);
+  dat_harv ~ lognormal(log(est_harv), 0.05);
   // observed age distribution
-  for(t in 1:(n_yrs-age_min-age_skip)) {
+  for(t in 1:(n_yrs-age_min)) {
     dat_age[t] ~ multinomial(age_props[t]);
   }
 }
