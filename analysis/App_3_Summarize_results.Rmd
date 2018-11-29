@@ -528,7 +528,7 @@ hh <- seq(100)
 Pr_over <- cbind(hh,hh,hh)
 colnames(Pr_over) <- c("Umsy75","Umsy","Umax")
 for(i in hh) {
-  Pr_over[i,"Umsy75"] <- sum(ref_pts[,"Umsy"]*0.75 < i/100)/mcmc
+  Pr_over[i,"Umsy75"] <- sum(ref_pts[,"Umsy"] * 0.75 < i/100)/mcmc
   Pr_over[i,"Umsy"] <- sum(ref_pts[,"Umsy"] < i/100)/mcmc
   Pr_over[i,"Umax"] <- sum(ref_pts[,"Umax"] < i/100)/mcmc
 }
@@ -540,30 +540,34 @@ for(i in 1:n_yrs) {
 }
 ```
 
-These are plots of (a) the probability that a given number of spawners produce average yields exceeding X% of MSY (i.e, optimal yield profiles); and (b) the cumulative probabilty of overfishing the population, based on harvest rates equal to those at 75% of MSY $(U_{\text{M75}})$, MSY $(U_{\text{MSY}})$, and the maximum $(U_{\text{Max}})$. The probability of exceeding $U_{\text{Max}}$ indicates the risk that offspring will not replace their parents, which, if sustained, will lead to eventual extinction. The histograms above (a) and (b) are distributions of the posterior estimates for the number of spawners and harvest rates, respectively.
 
-```{r plot_ref_pts, fig.width=8, fig.height=4, warning=FALSE}
-layout(matrix(c(2,1,4,3),2,2),heights=c(1,5))
-offSet <- 0.05
+```{r plot_ref_pts, fig.width=8, fig.height=4, warning=FALSE, fig.pos = "placeHere", fig.align="center"}
+layout(matrix(c(2, 1, 4, 3), 2, 2), heights=c(1,5))
+yoffSet <- 0.10
+yoffSet <- 0.05
 
 ## OYP
 par(mai=c(0.9,0.9,0,0), omi=c(0,0,0.1,0.1))
 x_lp <- yld_prop
 for(i in 1:length(x_lp)) {
-	x_lp[i] <- SS[max(which(OYP[,i] == max(OYP[,i]) | abs(OYP[,i] - (yld_prop[i]-0.3)) <= 0.05))]
+	x_lp[i] <- SS[max(which(OYP[,i] == max(OYP[,i])
+	                        | abs(OYP[,i] - (yld_prop[i]-0.3)) <= 0.05))]
 }
-matplot(SS, OYP, type="l", lty="solid", las=1, col=c("slateblue","blue","darkblue"), lwd=2,
-		xlab="Spawners", ylab="Probability of X% of MSY", cex.lab=1.2,
-		main="", ylim=c(0,1))
-points(x=x_lp, y=yld_prop-0.3, pch=21, cex=3.5, col="white", bg="white")
-text(x=x_lp, y=yld_prop-0.3, paste0(yld_prop*100,"%"),
-	 col=c("slateblue","blue","darkblue"), cex=0.7)
-text(x=par()$usr[1]+par()$pin[2]/par()$pin[1]*offSet*diff(par()$usr[1:2]),
-     y=par()$usr[4]-offSet*diff(par()$usr[3:4]),"(a)")
+matplot(SS, OYP, type="l", lty="solid", las=1,
+        col=c("slateblue","blue","darkblue"), lwd=2,
+        xlab="Spawners", ylab="Probability of X% of MSY", cex.lab=1.2,
+        main="", ylim=c(0,1))
+points(x = x_lp, y = yld_prop-0.3,
+       pch=21, cex=3.5, col="white", bg="white")
+text(x = x_lp, y = yld_prop-0.3, paste0(yld_prop*100,"%"),
+     col=c("slateblue","blue","darkblue"), cex=0.7)
+text(x = par()$usr[1] + xoffSet * diff(par()$usr[1:2]),
+     y = par()$usr[4] - yoffSet * diff(par()$usr[3:4]),
+     "(a)")
 ## posterior spawner abundance over all years
 par(mai=c(0,0.9,0.05,0))
 hist(Sp_ts[Sp_ts<1e4], col=clr, border="blue3", breaks=40,
-	  main="", yaxs="i", xaxt="n",yaxt="n",ylab="")
+     main="", yaxs="i", xaxt="n",yaxt="n",ylab="")
 
 ## prob of overfishing
 par(mai=c(0.9,0.9,0,0))
@@ -573,17 +577,18 @@ matplot(Pr_over, type="l", las=1, lwd=2, lty="solid", col=c("slateblue","blue","
 axis(1,seq(0,100,20),seq(0,100,20)/100)
 x_lp <- c(0,0,0)
 for(i in 1:length(x_lp)) {
-	x_lp[i] <- max(which(abs(Pr_over[,i] - 0.5) <= 0.05))
+  x_lp[i] <- max(which(abs(Pr_over[,i] - 0.5) <= 0.05))
 }
 points(x=x_lp, y=rep(0.5,3), pch=21, cex=4, col="white", bg="white")
 text(x=x_lp, y=0.5, expression(U[M75], U[MSY], U[Max]),
-	 col=c("slateblue","blue","darkblue"), cex=0.8)
-text(x=par()$usr[1]+par()$pin[2]/par()$pin[1]*offSet*diff(par()$usr[1:2]),
-     y=par()$usr[4]-offSet*diff(par()$usr[3:4]),"(b)")
+     col=c("slateblue","blue","darkblue"), cex=0.8)
+text(x=par()$usr[1] + xoffSet * diff(par()$usr[1:2]),
+     y=par()$usr[4] - yoffSet * diff(par()$usr[3:4]),
+     "(b)")
 ## posterior harvest rates over all years
 par(mai=c(0,0.9,0.05,0))
-hist(aer, col=clr, border="blue3", breaks=seq(0,40)/40,
-	  main="", yaxs="i", xaxt="n",yaxt="n",ylab="")
+hist(aer, col=clr, border="blue3", breaks = seq(0, 40)/40,
+     main = "", yaxs = "i", xaxt = "n", yaxt = "n", ylab = "")
 ```
 
 ```{r, echo=FALSE}
