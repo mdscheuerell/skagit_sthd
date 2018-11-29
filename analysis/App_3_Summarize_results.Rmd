@@ -74,6 +74,9 @@ A <- age_max - age_min + 1
 
 ## number of years for run forecasts
 n_fore <- 0
+
+## Posterior coverage interval
+CI_vec <- c(0.025,0.5,0.975)
 ```
 
 # Load the information
@@ -87,20 +90,22 @@ best_fit <- readRDS(file.path(savedir, "fit_bh_cov.rds"))
 ```{r load_covariates}
 ## covariate(s)
 dat_cvrs <- read_csv(file.path(datadir, "skagit_sthd_covars.csv"))
+## total number of covariates
+n_cov <- dim(dat_cvrs)[2] - 1
 ```
 
 ```{r get_escapement_data}
 ## escapement
 dat_esc <- read_csv(file.path(datadir, "skagit_sthd_esc.csv"))
 ## log of escapement
-ln_dat_esc <- c(log(dat_esc$escapement),rep(NA,n_fore))
+ln_dat_esc <- c(log(dat_esc$escapement), rep(NA, n_fore))
 ```
 
 ```{r get_harvest}
 ## harvest
 dat_harv <- read_csv(file.path(datadir, "skagit_sthd_catch.csv"))
 ## drop year col & first age_max rows
-dat_harv <- c(dat_harv$catch, rep(0,n_fore))
+dat_harv <- c(dat_harv$catch, rep(0, n_fore))
 ```
 
 # Main results
@@ -109,8 +114,9 @@ Here is a table of summary statistics for some of the model parameters.
 
 ```{r tbl_summary_stats}
 ## params of interest
-par_conv <- c("alpha","beta",paste0("gamma[",seq(3),"]"),
-              "sigma_r","sigma_s","pi_tau",paste0("pi_eta[",seq(A-1),"]"))
+par_conv <- c("alpha", "beta", paste0("gamma[",seq(n_cov),"]"),
+              "sigma_r", "sigma_s",
+              "pi_tau", paste0("pi_eta[",seq(A-1),"]"))
 ## summary table
 tbl_smry <- summary(best_fit)$quantiles[par_conv, c("2.5%","50%","97.5%")]
 round(tbl_smry, 2)
@@ -120,8 +126,34 @@ Now we need to convert the `mcmc.list` output into a more user-friendly form for
 
 ```{r}
 ## results
-# mod_res <- as.matrix(best_fit)
 mod_res <- do.call("rbind", best_fit)
+```
+
+## Total population size
+
+Here is our estimate of the total run size (i.e., catch + escapement) over time, which includes a forecast for `r yr_last+n_fore`. The black points are the data, the blue line is the median posterior estimate, and the shaded region is the 95% credible interval. Note that the y-axis is on a log scale.
+
+```{r plot_run_size, fig.width = 6, fig.height = 4.5, fig.pos = "placeHere"}
+clr <- rgb(0, 0, 255, alpha = 50, maxColorValue = 255)
+## estimated spawner data for plotting
+p_dat <- mod_res[,grep("Sp", colnames(mod_res))]
+p_dat <- apply(p_dat, 2, quantile, CI_vec)
+p_dat <- p_dat + matrix(dat_harv, length(CI_vec), n_yrs+n_fore, byrow = TRUE)
+## time seq
+t_idx_f <- seq(yr_frst, length.out = n_yrs+n_fore)
+## plot
+yp_min <- min(p_dat)
+yp_max <- max(p_dat)
+par(mai = c(0.8,0.8,0.1,0.1), omi = c(0.5,0.2,0.1,0.2))
+plot(t_idx_f, p_dat[3,], ylim = c(yp_min,yp_max), type = "n",
+     log = "y", xaxt = "n", yaxt = "n", bty = "L",
+     xlab = "Year", ylab = "Catch + escapement", main = "", cex.lab = 1.2)
+polygon(c(t_idx_f, rev(t_idx_f)), c(p_dat[3,], rev(p_dat[1,])),
+        col = clr, border = NA)
+lines(t_idx_f, p_dat[2,], col = "blue3", lwd = 2)
+points(t_idx_f, exp(ln_dat_esc)+dat_harv, pch = 16, cex = 1)
+axis(1, at = seq(1980, 2015, 5))
+axis(2, at = c(4000, 8000, 16000))
 ```
 
 ## Spawner-recruit relationship
@@ -130,100 +162,118 @@ Here is the relationship between spawner and subsequent recruits (a), assuming m
 
 ```{r plot_S_R, fig.width = 8, fig.height = 5, fig.pos = "placeHere"}
 layout(matrix(c(1,1,2,3),2,2),c(3,2),c(1,1))
-CI_vec <- c(0.025,0.5,0.975)
-offSet <- 0.06
+xoffSet <- 0.05
+yoffSet <- 0.03
+
+## colors for plotting
+clr <- rgb(100, 0, 200,
+           alpha = seq(200, 100,
+                       length.out = age_max-age_min+n_fore),
+           maxColorValue = 255)
 
 ## posterior of spawners
-sDat <- mod_res[,grep("Sp", colnames(mod_res))]
-sDat <- apply(sDat,2,quantile,CI_vec)
-sDat <- sDat[,1:(n_yrs-age_min+n_fore)]
+s_dat <- mod_res[,grep("Sp", colnames(mod_res))]
+s_dat <- apply(s_dat, 2, quantile, CI_vec)
+s_dat <- s_dat[, 1:(n_yrs-age_min+n_fore)]
+
 ## posterior of recruits
-rDat <- mod_res[,grep("tot_ln_Rec", colnames(mod_res))]
-rDat <- exp(apply(rDat,2,quantile,CI_vec))
+r_dat <- mod_res[, grep("tot_ln_Rec", colnames(mod_res))]
+r_dat <- exp(apply(r_dat, 2, quantile, CI_vec))
+
 ## median values for a & b
-aa <- apply(mod_res[,grep("ln_BH_a", colnames(mod_res))], 2, median)
-bb <- median(mod_res[,"beta"])
+aa <- apply(mod_res[, grep("ln_BH_a", colnames(mod_res))], 2, median)
+bb <- median(mod_res[, "beta"])
 
 ## empty plot space for spawner-recruit relationships
 dd <- 3000
-yM <- Re2prec(max(rDat),"ceiling",dd)
-#yM <- 30000
-xM <- Re2prec(max(sDat),"ceiling",dd)
+yM <- Re2prec(max(r_dat), "ceiling", dd)
+xM <- Re2prec(max(s_dat), "ceiling", dd)
 par(mai = c(0.8,0.8,0.1,0.1), omi = c(0,0,0,0))
-plot(sDat[2,], rDat[2,], xlim = c(0,xM), ylim = c(0,yM), type = "n",
-     xaxs = "i", yaxs = "i",
-     xlab = "Spawners (1000s)", ylab = "Recruits (1000s)", cex.lab = 1.2,
-     xaxt = "n", yaxt = "n")
+plot(s_dat[2,], r_dat[2,], xlim = c(0,xM), ylim = c(0,yM), type = "n",
+     xaxs = "i", yaxs = "i", cex.lab = 1.2,
+     xlab = expression(Spawners~(10^3)),
+     ylab = expression(Recruits~(10^3)),
+     xaxt = "n", yaxt = "n", bty="L")
 axis(1, at = seq(0,xM,dd*2), labels = seq(0,xM,dd*2)/1000)
 axis(2, at = seq(0,yM,dd*2), labels = seq(0,yM,dd*2)/1000, las=1)
 for(i in 1:length(aa)) {
-  lines(exp(aa[i])*seq(0,xM)/(1+bb*seq(0,xM)), col = "darkgray")
+  lines(exp(aa[i]) * seq(0,xM) / (1 + bb * seq(0,xM)),
+        col = "darkgray")
   }
 abline(a = 0,b = 1,lty = "dashed")
 
 ## add S-R estimates and medians
 nCB <- n_yrs-age_max
-points(sDat[2,1:nCB],rDat[2,1:nCB],
-       xlim = c(0,xM), ylim = c(0,yM), pch = 16, col = "blue3")
-segments(sDat[2,1:nCB],rDat[1,1:nCB],sDat[2,1:nCB],rDat[3,1:nCB], col = "blue3")
-segments(sDat[1,1:nCB],rDat[2,1:nCB],sDat[3,1:nCB],rDat[2,1:nCB], col = "blue3")
-nTB <- dim(sDat)[2]
-clr <- rgb(100, 0, 200,
-           alpha = seq(200,100,length.out = age_max-age_min+n_fore),
-           maxColorValue = 255)
-segments(sDat[2,(nCB+1):nTB],rDat[1,(nCB+1):nTB],
-         sDat[2,(nCB+1):nTB],rDat[3,(nCB+1):nTB],
+## years with complete returns
+points(s_dat[2, 1:nCB], r_dat[2, 1:nCB],
+       xlim = c(0,xM), ylim = c(0,yM),
+       pch = 16, col = "blue3")
+segments(s_dat[2, 1:nCB], r_dat[1, 1:nCB],
+         s_dat[2, 1:nCB], r_dat[3, 1:nCB],
+         col = "blue3")
+segments(s_dat[1, 1:nCB], r_dat[2, 1:nCB],
+         s_dat[3, 1:nCB], r_dat[2, 1:nCB],
+         col = "blue3")
+nTB <- dim(s_dat)[2]
+## years with incomplete returns
+segments(s_dat[2, (nCB+1):nTB], r_dat[1, (nCB+1):nTB],
+         s_dat[2, (nCB+1):nTB], r_dat[3, (nCB+1):nTB],
          col = clr)
-segments(sDat[1,(nCB+1):nTB],rDat[2,(nCB+1):nTB],
-         sDat[3,(nCB+1):nTB],rDat[2,(nCB+1):nTB],
+segments(s_dat[1, (nCB+1):nTB], r_dat[2, (nCB+1):nTB],
+         s_dat[3, (nCB+1):nTB], r_dat[2, (nCB+1):nTB],
          col = clr)
-points(sDat[2,(nCB+1):nTB],rDat[2,(nCB+1):nTB],
-       xlim = c(0,xM), ylim = c(0,yM), pch = 16, col = clr)
-text(x = par()$usr[1]+par()$pin[2]/par()$pin[1]*offSet*diff(par()$usr[1:2]),
-	 y = par()$usr[4]-offSet*diff(par()$usr[3:4]),"(a)")
+points(s_dat[2, (nCB+1):nTB],r_dat[2, (nCB+1):nTB],
+       xlim = c(0,xM), ylim = c(0,yM),
+       pch = 16, col = clr)
+text(x = par()$usr[1] + diff(par()$usr[1:2]) * xoffSet,
+     y = par()$usr[4] - diff(par()$usr[3:4]) * yoffSet,
+     "(a)")
 
 ## posterior for alpha
 clr <- rgb(0, 0, 255, alpha = 50, maxColorValue = 255)
 a_thresh <- 59
 par(mai = c(0.8,0.4,0.3,0.1))
 ## B-H alpha
-# R_alpha_est <- mod_fit$BUGSoutput$sims.list$alpha
-R_alpha_est <- mod_res[,"alpha"]
-alphaCI <- quantile(R_alpha_est,CI_vec)
-R_alpha_est[R_alpha_est>a_thresh] <- a_thresh
-hist(R_alpha_est,freq = FALSE,xlab = "",main = "",breaks = seq(0,a_thresh+1,2),
-     col = clr, border = "blue3", ylab = "", cex.lab = 1.2, yaxt = "n")
+R_alpha_est <- mod_res[, "alpha"]
+alphaCI <- quantile(R_alpha_est, CI_vec)
+R_alpha_est[R_alpha_est > a_thresh] <- a_thresh
+hist(R_alpha_est, freq = FALSE, breaks = seq(0, a_thresh+1, 2),
+     col = clr, border = "blue3",
+     xlab = "", ylab = "", main = "", cex.lab = 1.2, yaxt = "n")
 aHt <- (par()$usr[4]-par()$usr[3])/12
-arrows(alphaCI,par()$usr[3],alphaCI,par()$usr[3]-aHt,
-       code = 1,length = 0.05,xpd = NA,col = "blue3",lwd = 1.5)
+arrows(alphaCI, par()$usr[3], alphaCI,par()$usr[3]-aHt,
+       code = 1, length = 0.05, xpd = NA, col = "blue3", lwd = 1.5)
 mtext(expression(Instrinsic~productivity~(alpha)), 1, line = 3, cex = 1)
-text(x = par()$usr[1]+par()$pin[2]/par()$pin[1]*offSet*diff(par()$usr[1:2]),
-     y = par()$usr[4]*1.05,
+text(x = par()$usr[1],
+     y = par()$usr[4] * 1.05,
      "(b)", xpd=NA)
 
 ## posterior for K
 par(mai = c(0.8,0.4,0.3,0.1))
-aa <- mod_res[,"alpha"]
-bb <- mod_res[,"beta"]
-R_b_est <- (aa-1)/bb
+aa <- mod_res[, "alpha"]
+bb <- mod_res[, "beta"]
+## K in 1000s
+R_b_est <- (aa-1) / bb / 1000
 R_b_est <- R_b_est[R_b_est > 0]
-R_b_CI <- quantile(R_b_est,CI_vec)
-R_b_est[R_b_est>13e3] <- 13e3
-brks <- seq(Re2prec(min(R_b_est),"floor",1000),
-            Re2prec(max(R_b_est),"ceiling",1000),
-            length.out = length(seq(0,a_thresh,2)))
+R_b_CI <- quantile(R_b_est, CI_vec)
+## pile into last ban for plotting
+R_b_est[R_b_est > 13] <- 13
+brks <- seq(Re2prec(min(R_b_est), "floor"),
+            Re2prec(max(R_b_est), "ceiling"),
+            length.out = length(seq(0, a_thresh, 2)))
 hist(R_b_est, freq = FALSE, breaks = brks, col = clr, border = "blue3",
      xlab = "", xaxt = "n", yaxt = "n",
      main = "", ylab = "", cex.lab = 1.2)
-axis(1, at = seq(Re2prec(min(R_b_est),"floor",1000),
-                 Re2prec(max(R_b_est),"ceiling",1000),
-                 2000))
-aHt <- (par()$usr[4]-par()$usr[3])/12
-arrows(R_b_CI,par()$usr[3],R_b_CI,par()$usr[3]-aHt,
-       code = 1,length = 0.05,xpd = NA,col = "blue3",lwd = 1.5)
-mtext(expression(Carrying~capacity~(italic(K))), 1, line = 3, cex = 1)
-text(x = par()$usr[1]+par()$pin[2]/par()$pin[1]*offSet*diff(par()$usr[1:2]),
-     y = par()$usr[4]*1.05, # -offSet*diff(par()$usr[3:4]),
+axis(1, at = seq(Re2prec(min(R_b_est), "floor"),
+                 Re2prec(max(R_b_est), "ceiling"),
+                 2))
+aHt <- (par()$usr[4] - par()$usr[3]) / 12
+arrows(R_b_CI, par()$usr[3], R_b_CI,par()$usr[3]-aHt,
+       code = 1, length = 0.05, xpd = NA, col = "blue3", lwd = 1.5)
+mtext(expression(paste("Carrying capacity (",italic(K),", ",10^3,")")),
+      side = 1, line = 3, cex = 1)
+text(x = par()$usr[1], 
+     y = par()$usr[4] * 1.05,
      "(c)", xpd=NA)
 ```
 
@@ -233,12 +283,9 @@ text(x = par()$usr[1]+par()$pin[2]/par()$pin[1]*offSet*diff(par()$usr[1:2]),
 Here are time series plots of the covariates (a-c) and histograms of their effects on productivity (d-f).
 
 ```{r plot_cov_effects, fig.width=8, fig.height=10, fig.pos="placeHere", warnings=FALSE, messages=FALSE}
-## total number of covariates
-n_cov <- dim(dat_cvrs)[2] - 1
-
 clr <- rgb(0, 0, 255, alpha = 50, maxColorValue = 255)
-offSet <- 0.07
-# c_est <- mod_fit$BUGSoutput$sims.list$cc
+xoffSet <- 0.04
+yoffSet <- 0.03
 c_est <- mod_res[,grep("gamma", colnames(mod_res))]
 
 par(mfrow=c(n_cov,2), mai=c(0.4,0.2,0.1,0.1), omi=c(0.2,0.5,0,0))
@@ -257,10 +304,12 @@ for(i in 1:n_cov) {
     dat_cvrs[,i+1] <- dat_cvrs[,i+1]/1000
   }
   ## plot covar ts
-  plot(dat_cvrs[,"year"], dat_cvrs[,i+1], xlab="", ylab="",
-       main="", cex.axis=1.2, pch=16, col="blue3", type="o")
-  text(x=par()$usr[1]+par()$pin[2]/par()$pin[1]*offSet*diff(par()$usr[1:2]),
-       y=par()$usr[4]-offSet*diff(par()$usr[3:4]),
+  plot(dat_cvrs[,"year"], dat_cvrs[,i+1],
+       pch=16, col="blue3", type="o",
+       xlab="", ylab="", main="", bty = "L",
+       cex.axis=1.2)
+  text(x = par()$usr[1] + diff(par()$usr[1:2]) * xoffSet,
+       y = par()$usr[4] - diff(par()$usr[3:4]) * yoffSet,
        paste0("(",letters[i],")"),
        cex=1.2)
   mtext(side=2, cov_names[i], line=3, cex=1.2)
@@ -269,13 +318,13 @@ for(i in 1:n_cov) {
   hist(c_est[,i],
        freq=FALSE,breaks=brks,col=clr,border="blue3",
        xlab="", yaxt="n", main="", ylab="", cex.axis=1.2)
-  c_CI <- quantile(c_est[,i],c(0.025,0.5,0.975))
+  c_CI <- quantile(c_est[,i],CI_vec)
   aHt <- (par()$usr[4]-par()$usr[3])/20
   arrows(c_CI,par()$usr[3]-0.005,c_CI,par()$usr[3]-aHt,
          code=1,length=0.05,xpd=NA,col="blue3",lwd=1.5)
   abline(v=0, lty="dashed")
-  text(x=par()$usr[1]+par()$pin[2]/par()$pin[1]*offSet*diff(par()$usr[1:2]),
-       y=par()$usr[4]-offSet*diff(par()$usr[3:4]),
+  text(x = par()$usr[1] + diff(par()$usr[1:2]) * xoffSet,
+       y = par()$usr[4] - diff(par()$usr[3:4]) * yoffSet,
        paste0("(",letters[i+n_cov],")"),
        cex=1.2)
   if(i==n_cov) { mtext(side=1,"Effect size", line=3) }
@@ -283,43 +332,24 @@ for(i in 1:n_cov) {
 ```
 
 
-## Total population size
+## Process errors
 
-Here is our estimate of the total run size (i.e., catch + escapement) over time, which includes a forecast for `r yr_last+n_fore`. The black points are the data, the blue line is the median posterior estimate, and the shaded region is the 95% credible interval. Note that the y-axis is on a log scale.
+Here is the time series of the residuals from the process model. They represent the population's productivity after accounting for the effects of density dependence and environmental covariates.
 
-```{r plot_run_size, fig.width = 6, fig.height = 4.5, fig.pos = "placeHere"}
-pDat <- mod_res[,grep("Sp", colnames(mod_res))]
-pDat <- apply(pDat,2,quantile,CI_vec)
-pDat <- pDat + matrix(dat_harv, length(CI_vec), n_yrs+n_fore, byrow = TRUE)
-t_idx_f <- seq(yr_frst, length.out = n_yrs+n_fore)
-ypMin <- min(pDat)
-ypMax <- max(pDat)
-par(mai = c(0.8,0.8,0.1,0.1), omi = c(0.5,0.2,0.1,0.2))
-plot(t_idx_f, pDat[3,], ylim = c(ypMin,ypMax), type = "n",
-     log = "y", xaxt = "n", yaxt = "n",
-xlab = "Year", ylab = "Catch + escapement", main = "", cex.lab = 1.2)
-polygon(c(t_idx_f,rev(t_idx_f)),c(pDat[3,],rev(pDat[1,])), col = clr, border = NA)
-lines(t_idx_f, pDat[2,], col = "blue3", lwd = 2)
-points(t_idx_f, exp(ln_dat_esc)+dat_harv, pch = 16, cex = 1)
-axis(1,at = seq(1980,2015,5))
-axis(2,at = c(4000,8000,16000))
-```
-
-## Innovations
-
-Here is the time series of the so-called "innovations", which are the residuals from the process model. They give some indication of population productivity after accounting for the effects of density dependence.
-
-```{r plot_innovations, fig.width = 6, fig.height = 4, fig.pos = "placeHere"}
+```{r plot_proc_err, fig.width = 6, fig.height = 4, fig.pos = "placeHere"}
+## time sequence
 t_idx_a <- seq(yr_frst, length.out = n_yrs-age_min+n_fore)
-# pDat <- apply(mod_fit$BUGSoutput$sims.list$res_ln_Rec,2,quantile,CI_vec)
-pDat <- mod_res[,grep("res_ln_Rec", colnames(mod_res))]
-pDat <- apply(pDat, 2, quantile, CI_vec)
-ypMin <- min(pDat)
-ypMax <- max(pDat)
+## plot data
+p_dat <- mod_res[,grep("res_ln_Rec", colnames(mod_res))]
+p_dat <- apply(p_dat, 2, quantile, CI_vec)
+yp_min <- min(p_dat)
+yp_max <- max(p_dat)
+## plot
 par(mai = c(0.8,0.8,0.1,0.1), omi = c(0,0.2,0.1,0.2))
-plot(t_idx_a,pDat[3,], ylim = c(ypMin,ypMax), type = "n", #log = "y",
-xlab = "Brood year", ylab = "Innovations", main = "", cex.lab = 1.2)
+plot(t_idx_a,p_dat[3,], ylim = c(yp_min,yp_max), type = "n",  bty = "L",
+     xlab = "Brood year", ylab = "Process error", main = "", cex.lab = 1.2)
 abline(h = 0, lty = "dashed")
-polygon(c(t_idx_a,rev(t_idx_a)),c(pDat[3,],rev(pDat[1,])), col = clr, border = NA)
-lines(t_idx_a, pDat[2,], col = "blue3", lwd = 2)
+polygon(c(t_idx_a,rev(t_idx_a)),c(p_dat[3,],rev(p_dat[1,])),
+        col = clr, border = NA)
+lines(t_idx_a, p_dat[2,], col = "blue3", lwd = 2)
 ```
