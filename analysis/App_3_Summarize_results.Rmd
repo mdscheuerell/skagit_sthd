@@ -32,10 +32,10 @@ if(!require("readr")) {
   library("readr")
 }
 if(!require("captioner")) {
-  install.packages("captioner")
+  devtools::install_github("adletaw/captioner")
   library("captioner")
 }
-fig_cap <- captioner()
+fig_cap <- captioner(suffix = ".")
 if(!require("coda")) {
   install.packages("coda")
   library("coda")
@@ -43,6 +43,10 @@ if(!require("coda")) {
 if(!require("here")) {
   install.packages("here")
   library("here")
+}
+if(!require("gsl")) {
+  install.packages("gsl")
+  library("gsl")
 }
 ## set directory locations
 datadir <- here("data")
@@ -122,21 +126,108 @@ dat_harv <- read_csv(file.path(datadir, "skagit_sthd_catch.csv"))
 dat_harv <- c(dat_harv$catch, rep(0, n_fore))
 ```
 
-# Main results
+# Model forms
 
-Here is a table of summary statistics for some of the model parameters.
+Here are schematics of the deterministic forms of process models used in the analyses.
 
-```{r tbl_summary_stats}
-## params of interest
-par_conv <- c("alpha", "beta", paste0("gamma[",seq(n_cov),"]"),
-              "sigma_r", "sigma_s",
-              "pi_tau", paste0("pi_eta[",seq(A-1),"]"))
-## summary table
-tbl_smry <- summary(best_fit)$quantiles[par_conv, c("2.5%","50%","97.5%")]
-round(tbl_smry, 2)
+```{r model_forms, fig.height=6.5, fig.width=3.25, fig.pos="placeHere", fig.align="center"}
+## params
+## Ricker
+ra <- 3
+rb <- 1.2e-4
+## B-H
+ba <- 3
+bb <- 3/1.4e4
+
+## ref pts
+## Ricker
+rmr <- ra/rb*exp(-1)
+rsy <- (1 - lambert_W0(exp(1)/ra)) / rb
+ruy <- 1 - lambert_W0(exp(1)/ra)
+## B-H
+bmr <- ba/bb
+bsy <- (ba/bb)*sqrt(1/ba)-(1/bb)
+bsy <- (sqrt(ba)-1)/bb
+buy <- 1 - sqrt(1/ba)
+
+## S-R curves
+## spawners
+ss <- seq(0,1.2e4,10)
+## Ricker
+rr <- ra*ss/exp(rb*ss)
+## B-H
+br <- ba*ss/(1 + bb*ss)
+
+## plots
+
+layout(matrix(c(1,0,2),3,1), heights=lcm(c(3,0.3,3)*2.54), widths=lcm(3*2.54))
+par(mai=c(0.4,0.4,0.2,0.2), omi=c(0,0,0,0.25))
+
+## Ricker
+plot(ss, rr, type="n", xlim=range(ss), ylim=range(ss), xaxs="i", yaxs="i",
+     xlab="", ylab="", xaxt="n", yaxt="n", bty="L")
+mtext(expression(italic(S[t])), 1, line=1, cex=1.1, at=max(ss))
+mtext(expression(italic(R[t])), 2, line=0.5, cex=1.1, at=max(ss), las=1)
+rttl <- "(a) Ricker"
+text(400, max(ss), rttl, cex=1.1, adj=c(0,1), xpd=NA)
+## 1:1
+abline(a=0, b=1, col="gray")
+#text(1.2e4, 1.2e4, "1:1", adj=c(1,0))
+## R-S
+lines(ss, rr, lwd=2)
+rmod <- expression(frac(italic(alpha * S[t]),italic(e^{beta * S[t]})))
+text(12300, ra*max(ss)/exp(rb*max(ss)), rmod, adj=c(0,0.5), xpd=NA)
+## alpha
+segments(0, 0, 1900, ra*1900, lty="dashed")
+text(2000, ra*2000, expression(alpha), adj=c(0.5,0.5))
+## MSY
+segments(rsy,0,rsy,ra*rsy/exp(rb*rsy), lty="dashed")
+text(rsy, 0, expression(frac(1-italic(W)~bgroup("(",frac(italic(e),alpha),")"),beta)), adj=c(0.5,1.1), xpd=NA)
+segments(par()$usr[1],ra*rsy/exp(rb*rsy),rsy,ra*rsy/exp(rb*rsy), lty="dashed")
+text(0, ra*rsy/exp(rb*rsy), expression(italic(R)[MSY]), pos=2, xpd=NA)
+## K
+segments(0, log(ra)/rb, log(ra)/rb, log(ra)/rb, lty="dashed")
+segments(log(ra)/rb, 0, log(ra)/rb, log(ra)/rb, lty="dashed")
+text(log(ra)/rb, 0, expression(frac(log(alpha),beta)), adj=c(0.5,1.2), xpd=NA)
+text(0, log(ra)/rb, expression(italic(K)), pos=2, xpd=NA)
+
+## B-H
+plot(ss, br, type="n", xlim=range(ss), ylim=range(ss), xaxs="i", yaxs="i",
+     xlab="", ylab="", xaxt="n", yaxt="n", bty="L")
+mtext(expression(italic(S[t])), 1, line=1, cex=1.1, at=max(ss))
+mtext(expression(italic(R[t])), 2, line=0.5, cex=1.1, at=max(ss), las=1)
+bttl <- "(b) Beverton-Holt"
+text(400, max(ss), bttl, cex=1.1, adj=c(0,1), xpd=NA)
+## 1:1
+abline(a=0, b=1, col="gray")
+## R-S
+lines(ss, br, lwd=2)
+bmod <- expression(frac(italic(alpha * S[t]),1+italic(beta * S[t])))
+text(max(ss)+300, ba*max(ss)/(1 + bb*max(ss)), bmod, adj=c(0,0.5), xpd=NA)
+## alpha
+segments(0, 0, 1500, ba*1500, lty="dashed")
+text(1600, ba*1600, expression(alpha), adj=c(0.5,0.5))
+## MSY
+segments(bsy,0,bsy,ba*bsy/(1 + bb*bsy), lty="dashed")
+text(bsy, 0, expression(frac(root(alpha)-1,beta)), adj=c(0.5,1.2), xpd=NA)
+segments(par()$usr[1],ba*bsy/(1 + bb*bsy),bsy,ba*bsy/(1 + bb*bsy), lty="dashed")
+text(0, ba*bsy/(1 + bb*bsy), expression(italic(R)[MSY]), pos=2, xpd=NA)
+## K
+segments(0, (ba-1)/bb, (ba-1)/bb, (ba-1)/bb, lty="dashed")
+segments((ba-1)/bb, 0, (ba-1)/bb, (ba-1)/bb, lty="dashed")
+text((ba-1)/bb, 0, expression(frac(alpha-1,beta)), adj=c(0.5,1.2), xpd=NA)
+text(0, (ba-1)/bb, expression(italic(K)), pos=2, xpd=NA)
 ```
 
-Now we need to convert the `mcmc.list` output into a more user-friendly form for plotting, etc.
+```{r, echo=FALSE}
+cnt <- 1
+```
+
+`r fig_cap(cnt, caption = "Deterministic forms of the (a) Ricker and (b) Beverton-Holt models used in the analyses (thick lines), including equations for carrying capacity (K) and the number of recruits corresponding to the maximum sustained yield (RMSY). The parameter alpha defines the slope at the origin, the constant e is Euler’s number, and W() is the Lambert function (see Scheuerell 2016 for details). The gray line is where R_t = S_t.", display = "full")` 
+
+# Main results
+
+We need to convert the `mcmc.list` output into a more user-friendly form for plotting, etc.
 
 ```{r}
 ## results
@@ -147,7 +238,7 @@ mod_res <- do.call("rbind", best_fit)
 
 Here is our estimate of the total run size (i.e., catch + escapement) over time, which includes a forecast for `r yr_last+n_fore`. The black points are the data, the blue line is the median posterior estimate, and the shaded region is the 95% credible interval. Note that the y-axis is on a log scale.
 
-```{r plot_run_size, fig.width = 6, fig.height = 4.5, fig.pos = "placeHere"}
+```{r plot_run_size, fig.width = 6, fig.height = 4.5, fig.pos = "placeHere", fig.align="center"}
 clr <- rgb(0, 0, 255, alpha = 50, maxColorValue = 255)
 ## estimated spawner data for plotting
 p_dat <- mod_res[,grep("Sp", colnames(mod_res))]
@@ -170,13 +261,17 @@ axis(1, at = seq(1980, 2015, 5))
 axis(2, at = c(4000, 8000, 16000))
 ```
 
-`r fig_cap(1, caption = "Time series of the estimated total population size (catch plus the adults that escaped to spawn). The observed data are the points; the solid line is the median estimate and the shaded region represents the 95% credible interval.", display = "full")`
+```{r, echo=FALSE}
+cnt <- cnt + 1
+```
+
+`r fig_cap(cnt, caption = "Time series of the estimated total population size (catch plus the adults that escaped to spawn). The observed data are the points; the solid line is the median estimate and the shaded region represents the 95% credible interval.", display = "full")`
 
 ## Spawner-recruit relationship
 
 Here is the relationship between spawner and subsequent recruits (a), assuming mean values for all covariates. Gray lines show the median relationship for each of the `r n_yrs` years based on $a_t$. Note that for plotting purposes only in (b) and (c), the density in the largest bin for each parameter contains counts for all values greater or equal to that. Vertical arrows under the x-axes in (b) and (c) indicate the 2.5^th^, 50^th^, and 97.5^th^ percentiles.
 
-```{r plot_S_R, fig.width = 8, fig.height = 5, fig.pos = "placeHere"}
+```{r plot_S_R, fig.width = 8, fig.height = 5, fig.pos = "placeHere", fig.align="center"}
 layout(matrix(c(1,1,2,3),2,2),c(3,2),c(1,1))
 xoffSet <- 0.05
 yoffSet <- 0.03
@@ -293,14 +388,18 @@ text(x = par()$usr[1],
      "(c)", xpd=NA)
 ```
 
-`r fig_cap(2, caption = "Relationship between the number of spawning adults and their subsequent surviving offspring (recruits), assuming mean values for all covariates (a); and the estimated posterior distributions for the intrinsic productivity (b) and carrying capacity (c). Points in (a) are medians of the posterior estimates; error bars indicate the 95% credible intervals. Blue points are for estimates with complete broods; purple points are for the most recent years with incomplete broods. Gray lines show the median relationship for each of the 41 years in the time series based on annual model estimates of productivity. Note that for plotting purposes only in (b) and (c), the density in the largest bin for each parameter contains counts for all values greater than or equal to it. Vertical arrows under the x-axes in (b) and (c) indicate the 2.5th, 50th, and 97.5th percentiles.", display = "full")`
+```{r, echo=FALSE}
+cnt <- cnt + 1
+```
+
+`r fig_cap(cnt, caption = "Relationship between the number of spawning adults and their subsequent surviving offspring (recruits), assuming mean values for all covariates (a); and the estimated posterior distributions for the intrinsic productivity (b) and carrying capacity (c). Points in (a) are medians of the posterior estimates; error bars indicate the 95% credible intervals. Blue points are for estimates with complete broods; purple points are for the most recent years with incomplete broods. Gray lines show the median relationship for each of the 41 years in the time series based on annual model estimates of productivity. Note that for plotting purposes only in (b) and (c), the density in the largest bin for each parameter contains counts for all values greater than or equal to it. Vertical arrows under the x-axes in (b) and (c) indicate the 2.5th, 50th, and 97.5th percentiles.", display = "full")`
 
 
 ## Covariate effects
 
 Here are time series plots of the covariates (a-c) and histograms of their effects on productivity (d-f).
 
-```{r plot_cov_effects, fig.width=8, fig.height=10, fig.pos="placeHere", warnings=FALSE, messages=FALSE}
+```{r plot_cov_effects, fig.width=8, fig.height=10, fig.pos="placeHere", warnings=FALSE, messages=FALSE, fig.align="center"}
 clr <- rgb(0, 0, 255, alpha = 50, maxColorValue = 255)
 xoffSet <- 0.04
 yoffSet <- 0.03
@@ -348,13 +447,16 @@ for(i in 1:n_cov) {
 }
 ```
 
-`r fig_cap(3, caption = "Time series of the environmental covariates used in the model (a-d), and their estimated effects on population productivity (e-g). Small arrows under histograms denote 2.5th percentile, 50th percentile, and 97.5th percentile of the posterior distribution.", display = "full")`
+```{r, echo=FALSE}
+cnt <- cnt + 1
+```
+`r fig_cap(cnt, caption = "Time series of the environmental covariates used in the model (a-d), and their estimated effects on population productivity (e-g). Small arrows under histograms denote 2.5th percentile, 50th percentile, and 97.5th percentile of the posterior distribution.", display = "full")`
 
 ## Process errors
 
 Here is the time series of the residuals from the process model. They represent the population's productivity after accounting for the effects of density dependence and environmental covariates.
 
-```{r plot_proc_err, fig.width = 6, fig.height = 4, fig.pos = "placeHere"}
+```{r plot_proc_err, fig.width = 6, fig.height = 4, fig.pos = "placeHere", fig.align="center"}
 ## time sequence
 t_idx_a <- seq(yr_frst, length.out = n_yrs-age_min+n_fore)
 ## plot data
@@ -375,5 +477,9 @@ polygon(c(t_idx_a, rev(t_idx_a)), c(p_dat[3,], rev(p_dat[1,])),
 lines(t_idx_a, p_dat[2,], col = "blue3", lwd = 2)
 ```
 
-`r fig_cap(4, caption = "Time series of the estimated process errors, which represent the population's productivity after accounting for the effects of density dependence and environmental covariates. The solid line is the median estimate and the shaded region represents the 95% credible interval.", display = "full")`
+```{r, echo=FALSE}
+cnt <- cnt + 1
+```
+
+`r fig_cap(cnt, caption = "Time series of the estimated process errors, which represent the population's productivity after accounting for the effects of density dependence and environmental covariates. The solid line is the median estimate and the shaded region represents the 95% credible interval.", display = "full")`
 
