@@ -31,6 +31,11 @@ if(!require("readr")) {
   install.packages("readr")
   library("readr")
 }
+if(!require("captioner")) {
+  install.packages("captioner")
+  library("captioner")
+}
+fig_cap <- captioner()
 if(!require("coda")) {
   install.packages("coda")
   library("coda")
@@ -51,9 +56,12 @@ We also need a couple of helper functions.
 ## better round
 Re2prec <- function(x, map = "round", prec = 1) {
   ## 'map' can be "round", "floor", or "ceiling"
-  ## 'prec' is nearest value (eg, 0.1 means to nearest tenth; 1 gives normal behavior)
-  if(prec<=0) { stop("\"prec\" cannot be less than or equal to 0") }
-  do.call(map,list(x/prec))*prec
+  ## 'prec' is nearest value
+  ## (eg, 0.1 is to nearest tenth; 1 is to nearest integer)
+  if(prec <= 0) {
+    stop("\"prec\" cannot be less than or equal to 0")
+  }
+  do.call(map, list(x / prec)) * prec
 }
 ```
 
@@ -75,8 +83,14 @@ A <- age_max - age_min + 1
 ## number of years for run forecasts
 n_fore <- 0
 
-## Posterior coverage interval
+## posterior coverage interval
 CI_vec <- c(0.025,0.5,0.975)
+
+## covariate names & units for plotting
+cov_names <- c(expression(paste("Max flow (",m^3," ",s^{-1},")")),
+               expression(paste("Min flow (",m^3," ",s^{-1},")")),
+               "NPGO",
+               expression(paste("H releases (",10^3,")")))
 ```
 
 # Load the information
@@ -156,6 +170,8 @@ axis(1, at = seq(1980, 2015, 5))
 axis(2, at = c(4000, 8000, 16000))
 ```
 
+`r fig_cap(1, caption = "Time series of the estimated total population size (catch plus the adults that escaped to spawn). The observed data are the points; the solid line is the median estimate and the shaded region represents the 95% credible interval.", display = "full")`
+
 ## Spawner-recruit relationship
 
 Here is the relationship between spawner and subsequent recruits (a), assuming mean values for all covariates. Gray lines show the median relationship for each of the `r n_yrs` years based on $a_t$. Note that for plotting purposes only in (b) and (c), the density in the largest bin for each parameter contains counts for all values greater or equal to that. Vertical arrows under the x-axes in (b) and (c) indicate the 2.5^th^, 50^th^, and 97.5^th^ percentiles.
@@ -199,7 +215,7 @@ axis(2, at = seq(0,yM,dd*2), labels = seq(0,yM,dd*2)/1000, las=1)
 for(i in 1:length(aa)) {
   lines(exp(aa[i]) * seq(0,xM) / (1 + bb * seq(0,xM)),
         col = "darkgray")
-  }
+}
 abline(a = 0,b = 1,lty = "dashed")
 
 ## add S-R estimates and medians
@@ -277,6 +293,8 @@ text(x = par()$usr[1],
      "(c)", xpd=NA)
 ```
 
+`r fig_cap(2, caption = "Relationship between the number of spawning adults and their subsequent surviving offspring (recruits), assuming mean values for all covariates (a); and the estimated posterior distributions for the intrinsic productivity (b) and carrying capacity (c). Points in (a) are medians of the posterior estimates; error bars indicate the 95% credible intervals. Blue points are for estimates with complete broods; purple points are for the most recent years with incomplete broods. Gray lines show the median relationship for each of the 41 years in the time series based on annual model estimates of productivity. Note that for plotting purposes only in (b) and (c), the density in the largest bin for each parameter contains counts for all values greater than or equal to it. Vertical arrows under the x-axes in (b) and (c) indicate the 2.5th, 50th, and 97.5th percentiles.", display = "full")`
+
 
 ## Covariate effects
 
@@ -286,16 +304,13 @@ Here are time series plots of the covariates (a-c) and histograms of their effec
 clr <- rgb(0, 0, 255, alpha = 50, maxColorValue = 255)
 xoffSet <- 0.04
 yoffSet <- 0.03
-c_est <- mod_res[,grep("gamma", colnames(mod_res))]
 
 par(mfrow=c(n_cov,2), mai=c(0.4,0.2,0.1,0.1), omi=c(0.2,0.5,0,0))
+
+c_est <- mod_res[,grep("gamma", colnames(mod_res))]
 ylN <- floor(min(c_est)*10)/10
 ylM <- ceiling(max(c_est)*10)/10
 brks <- seq(ylN,ylM,length.out=diff(c(ylN,ylM))*40+1)
-cov_names <- c(expression(paste("Max flow (",m^3," ",s^{-1},")")),
-               expression(paste("Min flow (",m^3," ",s^{-1},")")),
-               "NPGO",
-               expression(paste("H releases (",10^3,")")))
 t_idx <- seq(yr_frst,length.out=n_yrs-age_min+n_fore)
 dat_cvrs <- as.matrix(dat_cvrs[seq(length(t_idx)),])
 
@@ -304,33 +319,36 @@ for(i in 1:n_cov) {
     dat_cvrs[,i+1] <- dat_cvrs[,i+1]/1000
   }
   ## plot covar ts
-  plot(dat_cvrs[,"year"], dat_cvrs[,i+1],
-       pch=16, col="blue3", type="o",
-       xlab="", ylab="", main="", bty = "L",
-       cex.axis=1.2)
+  plot(dat_cvrs[, "year"], dat_cvrs[, i+1],
+       pch = 16, col = "blue3", type = "o",
+       xlab = "", ylab = "", main = "", bty = "L",
+       cex.axis = 1.2)
   text(x = par()$usr[1] + diff(par()$usr[1:2]) * xoffSet,
        y = par()$usr[4] - diff(par()$usr[3:4]) * yoffSet,
        paste0("(",letters[i],")"),
-       cex=1.2)
-  mtext(side=2, cov_names[i], line=3, cex=1.2)
-  if(i==n_cov) { mtext(side=1,"Brood year", line=3) }
+       cex = 1.2)
+  mtext(side = 2, cov_names[i], line = 3, cex = 1.2)
+  if(i == n_cov) {
+    mtext(side = 1, "Brood year", line = 3)
+  }
   ## plot covar effect
   hist(c_est[,i],
-       freq=FALSE,breaks=brks,col=clr,border="blue3",
-       xlab="", yaxt="n", main="", ylab="", cex.axis=1.2)
+       freq = FALSE, breaks = brks, col = clr, border =" blue3",
+       xlab = "", yaxt = "n", main = "", ylab = "", cex.axis = 1.2)
   c_CI <- quantile(c_est[,i],CI_vec)
   aHt <- (par()$usr[4]-par()$usr[3])/20
-  arrows(c_CI,par()$usr[3]-0.005,c_CI,par()$usr[3]-aHt,
-         code=1,length=0.05,xpd=NA,col="blue3",lwd=1.5)
-  abline(v=0, lty="dashed")
+  arrows(c_CI, par()$usr[3]-0.005, c_CI, par()$usr[3] - aHt,
+         code = 1,length = 0.05, xpd = NA, col = "blue3", lwd = 1.5)
+  abline(v = 0, lty = "dashed")
   text(x = par()$usr[1] + diff(par()$usr[1:2]) * xoffSet,
        y = par()$usr[4] - diff(par()$usr[3:4]) * yoffSet,
        paste0("(",letters[i+n_cov],")"),
-       cex=1.2)
-  if(i==n_cov) { mtext(side=1,"Effect size", line=3) }
+       cex = 1.2)
+  if(i == n_cov) { mtext(side = 1,"Effect size", line = 3) }
 }
 ```
 
+`r fig_cap(3, caption = "Time series of the environmental covariates used in the model (a-d), and their estimated effects on population productivity (e-g). Small arrows under histograms denote 2.5th percentile, 50th percentile, and 97.5th percentile of the posterior distribution.", display = "full")`
 
 ## Process errors
 
@@ -340,16 +358,22 @@ Here is the time series of the residuals from the process model. They represent 
 ## time sequence
 t_idx_a <- seq(yr_frst, length.out = n_yrs-age_min+n_fore)
 ## plot data
-p_dat <- mod_res[,grep("res_ln_Rec", colnames(mod_res))]
+p_dat <- mod_res[, grep("res_ln_Rec", colnames(mod_res))]
 p_dat <- apply(p_dat, 2, quantile, CI_vec)
 yp_min <- min(p_dat)
 yp_max <- max(p_dat)
 ## plot
 par(mai = c(0.8,0.8,0.1,0.1), omi = c(0,0.2,0.1,0.2))
-plot(t_idx_a,p_dat[3,], ylim = c(yp_min,yp_max), type = "n",  bty = "L",
-     xlab = "Brood year", ylab = "Process error", main = "", cex.lab = 1.2)
+plot(t_idx_a, p_dat[3,],
+     type = "n",  bty = "L",
+     ylim = c(yp_min,yp_max),
+     xlab = "Brood year", ylab = "Process error", main = "",
+     cex.lab = 1.2)
 abline(h = 0, lty = "dashed")
-polygon(c(t_idx_a,rev(t_idx_a)),c(p_dat[3,],rev(p_dat[1,])),
+polygon(c(t_idx_a, rev(t_idx_a)), c(p_dat[3,], rev(p_dat[1,])),
         col = clr, border = NA)
 lines(t_idx_a, p_dat[2,], col = "blue3", lwd = 2)
 ```
+
+`r fig_cap(4, caption = "Time series of the estimated process errors, which represent the population's productivity after accounting for the effects of density dependence and environmental covariates. The solid line is the median estimate and the shaded region represents the 95% credible interval.", display = "full")`
+
