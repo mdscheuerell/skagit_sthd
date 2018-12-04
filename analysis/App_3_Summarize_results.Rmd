@@ -223,7 +223,7 @@ text(0, (ba-1)/bb, expression(italic(K)), pos=2, xpd=NA)
 cnt <- 1
 ```
 
-`r fig_cap(cnt, caption = "Deterministic forms of the (a) Ricker and (b) Beverton-Holt models used in the analyses (thick lines), including equations for carrying capacity (K) and the number of recruits corresponding to the maximum sustained yield (RMSY). The parameter alpha defines the slope at the origin, the constant e is Euler’s number, and W() is the Lambert function (see Scheuerell 2016 for details). The gray line is where R_t = S_t.", display = "full")` 
+`r fig_cap(cnt, caption = "Deterministic forms of the (a) Ricker and (b) Beverton-Holt models used in the analyses (thick lines), including equations for carrying capacity ($K$) and the number of recruits corresponding to the maximum sustained yield (RMSY). The parameter $\\alpha$ defines the slope at the origin, the constant $e$ is Euler’s number, and $W$ is the Lambert function (see Scheuerell 2016 for details). The gray line is where $R_t = S_t$.", display = "full")` 
 
 # Main results
 
@@ -265,7 +265,7 @@ axis(2, at = c(4000, 8000, 16000))
 cnt <- cnt + 1
 ```
 
-`r fig_cap(cnt, caption = "Time series of the estimated total population size (catch plus the adults that escaped to spawn). The observed data are the points; the solid line is the median estimate and the shaded region represents the 95% credible interval.", display = "full")`
+`r fig_cap(cnt, caption = "Time series of the estimated total population size (catch plus the adults that escaped to spawn). The observed data are the points; the solid line is the median estimate and the shaded region indicates the 95% credible interval.", display = "full")`
 
 ## Spawner-recruit relationship
 
@@ -392,7 +392,7 @@ text(x = par()$usr[1],
 cnt <- cnt + 1
 ```
 
-`r fig_cap(cnt, caption = "Relationship between the number of spawning adults and their subsequent surviving offspring (recruits), assuming mean values for all covariates (a); and the estimated posterior distributions for the intrinsic productivity (b) and carrying capacity (c). Points in (a) are medians of the posterior estimates; error bars indicate the 95% credible intervals. Blue points are for estimates with complete broods; purple points are for the most recent years with incomplete broods. Gray lines show the median relationship for each of the 41 years in the time series based on annual model estimates of productivity. Note that for plotting purposes only in (b) and (c), the density in the largest bin for each parameter contains counts for all values greater than or equal to it. Vertical arrows under the x-axes in (b) and (c) indicate the 2.5th, 50th, and 97.5th percentiles.", display = "full")`
+`r fig_cap(cnt, caption = "Relationship between the number of spawning adults and their subsequent surviving offspring (recruits), assuming mean values for all covariates (a); and the estimated posterior distributions for the intrinsic productivity (b) and carrying capacity (c). Points in (a) are medians of the posterior estimates; error bars indicate the 95% credible intervals. Blue points are for estimates with complete broods; purple points are for the most recent years with incomplete broods. Gray lines show the median relationship for each of the 41 years in the time series based on annual model estimates of productivity. Note that for plotting purposes only in (b) and (c), the density in the largest bin for each parameter contains counts for all values greater than or equal to it. Vertical arrows under the x-axes in (b) and (c) indicate the 2.5$^\\text{th}$, 50$^\\text{th}$, and 97.5$^\\text{th}$ percentiles.", display = "full")`
 
 
 ## Covariate effects
@@ -450,7 +450,8 @@ for(i in 1:n_cov) {
 ```{r, echo=FALSE}
 cnt <- cnt + 1
 ```
-`r fig_cap(cnt, caption = "Time series of the environmental covariates used in the model (a-d), and their estimated effects on population productivity (e-g). Small arrows under histograms denote 2.5th percentile, 50th percentile, and 97.5th percentile of the posterior distribution.", display = "full")`
+
+`r fig_cap(cnt, caption = "Time series of the environmental covariates used in the model (a-d), and their estimated effects on population productivity (e-g). Small arrows under histograms denote 2.5$^\\text{th}$, 50$^\\text{th}$, and 97.5$^\\text{th}$ percentiles of the posterior distribution.", display = "full")`
 
 ## Process errors
 
@@ -481,7 +482,7 @@ lines(t_idx_a, p_dat[2,], col = "blue3", lwd = 2)
 cnt <- cnt + 1
 ```
 
-`r fig_cap(cnt, caption = "Time series of the estimated process errors, which represent the population's productivity after accounting for the effects of density dependence and environmental covariates. The solid line is the median estimate and the shaded region represents the 95% credible interval.", display = "full")`
+`r fig_cap(cnt, caption = "Time series of the estimated process errors, which represent the population's productivity after accounting for the effects of density dependence and environmental covariates. The solid line is the median estimate and the shaded region indicates the 95% credible interval.", display = "full")`
 
 ## Management reference points
 
@@ -542,58 +543,66 @@ for(i in 1:n_yrs) {
 
 
 ```{r plot_ref_pts, fig.width=8, fig.height=4, warning=FALSE, fig.pos = "placeHere", fig.align="center"}
-layout(matrix(c(2, 1, 4, 3), 2, 2), heights=c(1,5))
+layout(matrix(c(2, 1, 4, 3), 2, 2), heights = c(1, 5))
 yoffSet <- 0.10
 yoffSet <- 0.05
 
-## OYP
-par(mai=c(0.9,0.9,0,0), omi=c(0,0,0.1,0.1))
+## (a) Optimal yield profile
+par(mai=c(0.9, 0.9, 0, 0), omi=c(0, 0, 0.1, 0.1))
 x_lp <- yld_prop
 for(i in 1:length(x_lp)) {
 	x_lp[i] <- SS[max(which(OYP[,i] == max(OYP[,i])
 	                        | abs(OYP[,i] - (yld_prop[i]-0.3)) <= 0.05))]
 }
-matplot(SS, OYP, type="l", lty="solid", las=1,
+matplot(SS, OYP, type="l", lty="solid",  ylim=c(0,1),
         col=c("slateblue","blue","darkblue"), lwd=2,
-        xlab="Spawners", ylab="Probability of X% of MSY", cex.lab=1.2,
-        main="", ylim=c(0,1))
+        xlab = "Spawners", ylab = "Probability of X% of MSY", main = "",
+        las=1, cex.lab=1.2)
 points(x = x_lp, y = yld_prop-0.3,
-       pch=21, cex=3.5, col="white", bg="white")
-text(x = x_lp, y = yld_prop-0.3, paste0(yld_prop*100,"%"),
+       pch = 21, cex = 3.5,
+       col = "white", bg = "white")
+text(x = x_lp, y = yld_prop-0.3, paste0(yld_prop*100, "%"),
      col=c("slateblue","blue","darkblue"), cex=0.7)
 text(x = par()$usr[1] + xoffSet * diff(par()$usr[1:2]),
      y = par()$usr[4] - yoffSet * diff(par()$usr[3:4]),
      "(a)")
-## posterior spawner abundance over all years
-par(mai=c(0,0.9,0.05,0))
-hist(Sp_ts[Sp_ts<1e4], col=clr, border="blue3", breaks=40,
-     main="", yaxs="i", xaxt="n",yaxt="n",ylab="")
+## marginal histogram of posterior spawner abundances
+par(mai=c(0, 0.9, 0.05, 0))
+hist(Sp_ts[Sp_ts<1e4], breaks = 40,
+     col = clr, border = "blue3", 
+     yaxs = "i", xaxt = "n", yaxt = "n",
+     main = "", ylab = "")
 
-## prob of overfishing
-par(mai=c(0.9,0.9,0,0))
-matplot(Pr_over, type="l", las=1, lwd=2, lty="solid", col=c("slateblue","blue","darkblue"),
-        ylab="Probability of overfishing", cex.lab=1.2,
-        xlab="Harvest rate", xaxt="n")
-axis(1,seq(0,100,20),seq(0,100,20)/100)
-x_lp <- c(0,0,0)
+## (b) Probability of overfishing
+par(mai=c(0.9, 0.9, 0, 0))
+matplot(Pr_over, type = "l", lwd = 2, lty = "solid",
+        col = c("slateblue","blue","darkblue"), 
+        ylab="Probability of overfishing", 
+        xlab="Harvest rate", xaxt="n",
+        las = 1, cex.lab = 1.2)
+axis(1, seq(0,100,20), seq(0,100,20)/100)
+x_lp <- c(0, 0, 0)
 for(i in 1:length(x_lp)) {
   x_lp[i] <- max(which(abs(Pr_over[,i] - 0.5) <= 0.05))
 }
-points(x=x_lp, y=rep(0.5,3), pch=21, cex=4, col="white", bg="white")
-text(x=x_lp, y=0.5, expression(U[M75], U[MSY], U[Max]),
-     col=c("slateblue","blue","darkblue"), cex=0.8)
-text(x=par()$usr[1] + xoffSet * diff(par()$usr[1:2]),
-     y=par()$usr[4] - yoffSet * diff(par()$usr[3:4]),
+points(x = x_lp, y = rep(0.5, 3), pch = 21, cex = 4,
+       col = "white", bg = "white")
+text(x = x_lp, y = 0.5, expression(U[M75], U[MSY], U[Max]),
+     col = c("slateblue", "blue", "darkblue"), cex = 0.8)
+text(x = par()$usr[1] + xoffSet * diff(par()$usr[1:2]),
+     y = par()$usr[4] - yoffSet * diff(par()$usr[3:4]),
      "(b)")
-## posterior harvest rates over all years
-par(mai=c(0,0.9,0.05,0))
-hist(aer, col=clr, border="blue3", breaks = seq(0, 40)/40,
-     main = "", yaxs = "i", xaxt = "n", yaxt = "n", ylab = "")
+## marginal histogram of posterior harvest rates
+par(mai = c(0 ,0.9, 0.05, 0))
+hist(aer, breaks = seq(0, 40)/40,
+     col = clr, border = "blue3",
+     yaxs = "i", xaxt = "n", yaxt = "n",
+     main = "", ylab = "")
 ```
 
 ```{r, echo=FALSE}
 cnt <- cnt + 1
 ```
 
-`r fig_cap(cnt, caption = "Plots of (a) the probability that a given number of spawners produces average yields achieving 95%, 85%, or 75% of the estimated maximum sustainable yield (MSY); and (b) the cumulative probability of overfishing the population, based on harvest rates equal to those at 75% of MSY, at MSY, and at the maximum per recruit. The histograms above (a) and (b) are distributions of the posterior estimates for the number of spawners and harvest rates, respectively; the histogram in (a) has been truncated at 10,000 spawners.", display = "full")`
+`r fig_cap(cnt, caption = "Plots of (a) the probability that a given number of spawners produces average yields achieving 95%, 85%, or 75% of the estimated maximum sustainable yield (MSY); and (b) the cumulative probability of overfishing the population, based on harvest rates equal to those at 75% of MSY, at MSY, and at the maximum per recruit. The histograms above (a) and (b) are distributions of the posterior estimates for the number of spawners and harvest rates, respectively; the histogram in (a) has been truncated at $10^4$.", display = "full")`
 
