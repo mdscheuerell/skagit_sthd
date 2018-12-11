@@ -381,6 +381,34 @@ for(i in 1:n_cov) {
 dev.off()
 
 
+## ----plot_R_per_S, fig.width = 6, fig.height = 4, fig.pos = "placeHere", fig.align="center"----
+png(file.path(figsdir, "Fig_X1_R_per_S.png"),
+    height = 6, width = 10, units = "in", res = 500)
+
+par(mai = c(0.9,0.9,0.1,0.1), omi = c(0,0,0,0))
+clr <- rgb(0, 0, 255, alpha = 50, maxColorValue = 255)
+
+## time sequence
+t_idx_a <- seq(yr_frst, length.out = n_yrs-age_min+n_fore)
+## plot data
+p_dat <- mod_res[, grep("ln_RS", colnames(mod_res))]
+p_dat <- apply(p_dat, 2, quantile, CI_vec)
+yp_min <- min(p_dat)
+yp_max <- max(p_dat)
+## plot
+plot(t_idx_a, p_dat[3,],
+     type = "n",  bty = "L",
+     ylim = c(yp_min,yp_max),
+     xlab = "Brood year", ylab = "ln(R/S)", main = "",
+     cex.lab = 1.5, cex.axis = 1.2, las = 1)
+abline(h = 0, lty = "dashed")
+polygon(c(t_idx_a, rev(t_idx_a)), c(p_dat[3,], rev(p_dat[1,])),
+        col = clr, border = NA)
+lines(t_idx_a, p_dat[2,], col = "blue3", lwd = 2)
+
+dev.off()
+
+
 ## ----plot_proc_err, fig.width = 6, fig.height = 4, fig.pos = "placeHere", fig.align="center"----
 png(file.path(figsdir, "Fig_5_process_errors.png"),
     height = 6, width = 10, units = "in", res = 500)
@@ -399,7 +427,7 @@ plot(t_idx_a, p_dat[3,],
      type = "n",  bty = "L",
      ylim = c(yp_min,yp_max),
      xlab = "Brood year", ylab = "Process error", main = "",
-     cex.lab = 1.5, cex.axis = 1.2)
+     cex.lab = 1.5, cex.axis = 1.2, las = 1)
 abline(h = 0, lty = "dashed")
 polygon(c(t_idx_a, rev(t_idx_a)), c(p_dat[3,], rev(p_dat[1,])),
         col = clr, border = NA)
