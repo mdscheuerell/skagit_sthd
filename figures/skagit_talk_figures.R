@@ -358,10 +358,10 @@ for(i in 1:n_cov) {
        pch = 16, col = "blue3", type = "o",
        xlab = "", ylab = "", main = "", bty = "L",
        cex.axis = 1.2)
-  text(x = par()$usr[1] + diff(par()$usr[1:2]) * xoffSet,
-       y = par()$usr[4] - diff(par()$usr[3:4]) * yoffSet,
-       paste0("(",letters[i],")"),
-       cex = 1.2)
+  # text(x = par()$usr[1] + diff(par()$usr[1:2]) * xoffSet,
+  #      y = par()$usr[4] - diff(par()$usr[3:4]) * yoffSet,
+  #      paste0("(",letters[i],")"),
+  #      cex = 1.2)
   mtext(side = 2, cov_names[i], line = 3, cex = 1.2)
   if(i == n_cov) {
     mtext(side = 1, "Brood year", line = 3, cex = 1.2)
