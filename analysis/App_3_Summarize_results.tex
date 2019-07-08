@@ -542,25 +542,25 @@ Here are summaries of the posterior distributions for \(\alpha\) and
 \begin{Shaded}
 \begin{Highlighting}[]
 \CommentTok{## intrinsic productivity}
-\NormalTok{alphaCI}
+\KeywordTok{round}\NormalTok{(alphaCI, }\DecValTok{2}\NormalTok{)}
 \end{Highlighting}
 \end{Shaded}
 
 \begin{verbatim}
-##      2.5%       50%     97.5% 
-##  1.458974  6.829942 44.182097
+##  2.5%   50% 97.5% 
+##  1.46  6.83 44.18
 \end{verbatim}
 
 \begin{Shaded}
 \begin{Highlighting}[]
 \CommentTok{## carrying capacity}
-\NormalTok{R_b_CI}
+\KeywordTok{round}\NormalTok{(R_b_CI, }\DecValTok{2}\NormalTok{)}
 \end{Highlighting}
 \end{Shaded}
 
 \begin{verbatim}
-##      2.5%       50%     97.5% 
-##  6.130989  7.434165 10.898226
+##  2.5%   50% 97.5% 
+##  6.13  7.43 10.90
 \end{verbatim}
 
 \hypertarget{covariate-effects}{%
@@ -626,6 +626,23 @@ Figure 4. Time series of the environmental covariates used in the model
 Small arrows under histograms denote 2.5\(^\text{th}\),
 50\(^\text{th}\), and 97.5\(^\text{th}\) percentiles of the posterior
 distribution.
+
+Here is a summary of the covariate effect sizes
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{gamma_CI <-}\StringTok{ }\KeywordTok{apply}\NormalTok{(c_est, }\DecValTok{2}\NormalTok{, quantile, CI_vec)}
+\KeywordTok{t}\NormalTok{(}\KeywordTok{round}\NormalTok{(gamma_CI, }\DecValTok{2}\NormalTok{))}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##           2.5%   50% 97.5%
+## gamma[1] -0.26 -0.11  0.06
+## gamma[2] -0.07  0.08  0.25
+## gamma[3] -0.08  0.09  0.27
+## gamma[4] -0.36 -0.20 -0.03
+\end{verbatim}
 
 \hypertarget{process-errors}{%
 \subsection{Process errors}\label{process-errors}}
