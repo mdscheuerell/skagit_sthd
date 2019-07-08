@@ -399,10 +399,10 @@ Here are summaries of the posterior distributions for $\alpha$ and $K$.
 
 ```{r SR_posterior_summaries}
 ## intrinsic productivity
-alphaCI
+round(alphaCI, 2)
 
 ## carrying capacity
-R_b_CI
+round(R_b_CI, 2)
 ```
 
 ## Covariate effects
@@ -462,6 +462,14 @@ cnt <- cnt + 1
 ```
 
 `r fig_cap(cnt, caption = "Time series of the environmental covariates used in the model (a-d), and their estimated effects on population productivity (e-g). Small arrows under histograms denote 2.5$^\\text{th}$, 50$^\\text{th}$, and 97.5$^\\text{th}$ percentiles of the posterior distribution.", display = "full")`
+
+Here is a summary of the covariate effect sizes
+
+```{r summarize_gamma}
+gamma_CI <- apply(c_est, 2, quantile, CI_vec)
+t(round(gamma_CI, 2))
+```
+
 
 ## Process errors
 
