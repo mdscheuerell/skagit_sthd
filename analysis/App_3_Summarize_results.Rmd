@@ -7,13 +7,14 @@ output:
     toc: yes
     number_sections: true
     toc_depth: '3'
+    keep_tex: yes
 fontsize: 11pt
 geometry: margin=1in
 ---
 
 ```{r set_options, echo = FALSE, message = FALSE}
 options(width = 100)
-knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(message = FALSE, dev = "pdf")
 ```
 
 \vspace{0.2in}
@@ -130,7 +131,7 @@ dat_harv <- c(dat_harv$catch, rep(0, n_fore))
 
 Here are schematics of the deterministic forms of process models used in the analyses.
 
-```{r model_forms, fig.height=6.5, fig.width=3.25, fig.pos="placeHere", fig.align="center"}
+```{r fig_1_model_forms, fig.height=6.5, fig.width=3.25, fig.pos="placeHere", fig.align="center"}
 ## params
 ## Ricker
 ra <- 3
@@ -238,7 +239,7 @@ mod_res <- do.call("rbind", best_fit)
 
 Here is our estimate of the total run size (i.e., catch + escapement) over time, which includes a forecast for `r yr_last+n_fore`. The black points are the data, the blue line is the median posterior estimate, and the shaded region is the 95% credible interval. Note that the y-axis is on a log scale.
 
-```{r plot_run_size, fig.width = 6, fig.height = 4.5, fig.pos = "placeHere", fig.align="center"}
+```{r fig_2_run_size, fig.width = 6, fig.height = 4.5, fig.pos = "placeHere", fig.align="center"}
 clr <- rgb(0, 0, 255, alpha = 50, maxColorValue = 255)
 ## estimated spawner data for plotting
 p_dat <- mod_res[,grep("Sp", colnames(mod_res))]
@@ -271,7 +272,7 @@ cnt <- cnt + 1
 
 Here is the relationship between spawner and subsequent recruits (a), assuming mean values for all covariates. Gray lines show the median relationship for each of the `r n_yrs` years based on $a_t$. Note that for plotting purposes only in (b) and (c), the density in the largest bin for each parameter contains counts for all values greater or equal to that. Vertical arrows under the x-axes in (b) and (c) indicate the 2.5^th^, 50^th^, and 97.5^th^ percentiles.
 
-```{r plot_S_R, fig.width = 8, fig.height = 5, fig.pos = "placeHere", fig.align="center"}
+```{r fig_3_S-R, fig.width = 8, fig.height = 5, fig.pos = "placeHere", fig.align="center"}
 layout(matrix(c(1,1,2,3),2,2),c(3,2),c(1,1))
 xoffSet <- 0.05
 yoffSet <- 0.03
@@ -399,7 +400,7 @@ cnt <- cnt + 1
 
 Here are time series plots of the covariates (a-c) and histograms of their effects on productivity (d-f).
 
-```{r plot_cov_effects, fig.width=8, fig.height=10, fig.pos="placeHere", warnings=FALSE, messages=FALSE, fig.align="center"}
+```{r fig_4_cov_effects, fig.width=8, fig.height=10, fig.pos="placeHere", warnings=FALSE, messages=FALSE, fig.align="center"}
 clr <- rgb(0, 0, 255, alpha = 50, maxColorValue = 255)
 xoffSet <- 0.04
 yoffSet <- 0.03
@@ -457,7 +458,7 @@ cnt <- cnt + 1
 
 Here is the time series of the residuals from the process model. They represent the population's productivity after accounting for the effects of density dependence and environmental covariates.
 
-```{r plot_proc_err, fig.width = 6, fig.height = 4, fig.pos = "placeHere", fig.align="center"}
+```{r fig_5_proc_err, fig.width = 6, fig.height = 4, fig.pos = "placeHere", fig.align="center"}
 ## time sequence
 t_idx_a <- seq(yr_frst, length.out = n_yrs-age_min+n_fore)
 ## plot data
@@ -542,7 +543,7 @@ for(i in 1:n_yrs) {
 ```
 
 
-```{r plot_ref_pts, fig.width=8, fig.height=4, warning=FALSE, fig.pos = "placeHere", fig.align="center"}
+```{r fig_6_ref_pts, fig.width=8, fig.height=4, warning=FALSE, fig.pos = "placeHere", fig.align="center"}
 layout(matrix(c(2, 1, 4, 3), 2, 2), heights = c(1, 5))
 yoffSet <- 0.10
 yoffSet <- 0.05
