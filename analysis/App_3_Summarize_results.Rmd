@@ -473,7 +473,7 @@ cnt <- cnt + 1
 Here is a summary of the covariate effect sizes
 
 ```{r summarize_gamma}
-gamma_CI <- apply(c_est, 2, quantile, CI_vec)
+gamma_CI <- apply(c_est, 2, quantile, c(2.5, 5, 50, 95, 97.5)/100)
 t(round(gamma_CI, 2))
 ```
 
