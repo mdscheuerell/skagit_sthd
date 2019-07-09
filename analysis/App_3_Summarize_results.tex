@@ -136,11 +136,10 @@ This is version 0.19.07.08.
 \section{Background}\label{background}}
 
 This appendix shows how to recreate the figures in the main text based
-on the results from the best of the fitted models.
-
-All analyses require the \href{https://cran.r-project.org/}{R software}
-(v3.4.3 or later), as well as a few packages that are not included with
-the base installation of R.
+on the results from the best of the fitted models. All analyses require
+the \href{https://cran.r-project.org/}{R software} (v3.5 or later), as
+well as a few packages that are not included with the base installation
+of R.
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -152,7 +151,6 @@ the base installation of R.
 \NormalTok{  devtools}\OperatorTok{::}\KeywordTok{install_github}\NormalTok{(}\StringTok{"adletaw/captioner"}\NormalTok{)}
   \KeywordTok{library}\NormalTok{(}\StringTok{"captioner"}\NormalTok{)}
 \NormalTok{\}}
-\NormalTok{fig_cap <-}\StringTok{ }\KeywordTok{captioner}\NormalTok{(}\DataTypeTok{suffix =} \StringTok{"."}\NormalTok{)}
 \ControlFlowTok{if}\NormalTok{(}\OperatorTok{!}\KeywordTok{require}\NormalTok{(}\StringTok{"coda"}\NormalTok{)) \{}
   \KeywordTok{install.packages}\NormalTok{(}\StringTok{"coda"}\NormalTok{)}
   \KeywordTok{library}\NormalTok{(}\StringTok{"coda"}\NormalTok{)}
@@ -165,26 +163,29 @@ the base installation of R.
   \KeywordTok{install.packages}\NormalTok{(}\StringTok{"gsl"}\NormalTok{)}
   \KeywordTok{library}\NormalTok{(}\StringTok{"gsl"}\NormalTok{)}
 \NormalTok{\}}
+
+\CommentTok{## set default caption delimter}
+\NormalTok{fig_cap <-}\StringTok{ }\KeywordTok{captioner}\NormalTok{(}\DataTypeTok{suffix =} \StringTok{"."}\NormalTok{)}
+
 \CommentTok{## set directory locations}
 \NormalTok{datadir <-}\StringTok{ }\KeywordTok{here}\NormalTok{(}\StringTok{"data"}\NormalTok{)}
 \NormalTok{analdir <-}\StringTok{ }\KeywordTok{here}\NormalTok{(}\StringTok{"analysis"}\NormalTok{)}
 \NormalTok{savedir <-}\StringTok{ }\KeywordTok{here}\NormalTok{(}\StringTok{"analysis/cache"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
 
-We also need a couple of helper functions.
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\CommentTok{## better round}
-\NormalTok{Re2prec <-}\StringTok{ }\ControlFlowTok{function}\NormalTok{(x, }\DataTypeTok{map =} \StringTok{"round"}\NormalTok{, }\DataTypeTok{prec =} \DecValTok{1}\NormalTok{) \{}
-  \CommentTok{## 'map' can be "round", "floor", or "ceiling"}
-  \CommentTok{## 'prec' is nearest value}
-  \CommentTok{## (eg, 0.1 is to nearest tenth; 1 is to nearest integer)}
-  \ControlFlowTok{if}\NormalTok{(prec }\OperatorTok{<=}\StringTok{ }\DecValTok{0}\NormalTok{) \{}
-    \KeywordTok{stop}\NormalTok{(}\StringTok{"}\CharTok{\textbackslash{}"}\StringTok{prec}\CharTok{\textbackslash{}"}\StringTok{ cannot be less than or equal to 0"}\NormalTok{)}
+\CommentTok{## better round/floor/ceiling}
+\NormalTok{around <-}\StringTok{ }\ControlFlowTok{function}\NormalTok{(x, }\DataTypeTok{func =} \StringTok{"round"}\NormalTok{, }\DataTypeTok{prec =} \DecValTok{1}\NormalTok{) \{}
+  \CommentTok{## `func` can be "round", "floor", or "ceiling"}
+  \CommentTok{## `prec` is desired precision (eg, 0.1 is to nearest tenth)}
+  \ControlFlowTok{if}\NormalTok{(}\OperatorTok{!}\KeywordTok{is.double}\NormalTok{(x)) \{}
+    \KeywordTok{stop}\NormalTok{(}\StringTok{"`x` must be a real number"}\NormalTok{)}
 \NormalTok{  \}}
-  \KeywordTok{do.call}\NormalTok{(map, }\KeywordTok{list}\NormalTok{(x }\OperatorTok{/}\StringTok{ }\NormalTok{prec)) }\OperatorTok{*}\StringTok{ }\NormalTok{prec}
+  \ControlFlowTok{if}\NormalTok{(}\OperatorTok{!}\NormalTok{(func }\OperatorTok{%in%}\StringTok{ }\KeywordTok{c}\NormalTok{(}\StringTok{"round"}\NormalTok{, }\StringTok{"floor"}\NormalTok{, }\StringTok{"ceiling"}\NormalTok{))) \{}
+    \KeywordTok{stop}\NormalTok{(}\StringTok{"`func` must be }\CharTok{\textbackslash{}"}\StringTok{round}\CharTok{\textbackslash{}"}\StringTok{, }\CharTok{\textbackslash{}"}\StringTok{floor}\CharTok{\textbackslash{}"}\StringTok{, or }\CharTok{\textbackslash{}"}\StringTok{ceiling}\CharTok{\textbackslash{}"}\StringTok{"}\NormalTok{)}
+\NormalTok{  \}}
+  \ControlFlowTok{if}\NormalTok{(prec }\OperatorTok{<=}\StringTok{ }\DecValTok{0}\NormalTok{) \{}
+    \KeywordTok{stop}\NormalTok{(}\StringTok{"`prec` cannot be less than or equal to 0"}\NormalTok{)}
+\NormalTok{  \}}
+  \KeywordTok{do.call}\NormalTok{(func, }\KeywordTok{list}\NormalTok{(x }\OperatorTok{/}\StringTok{ }\NormalTok{prec)) }\OperatorTok{*}\StringTok{ }\NormalTok{prec}
 \NormalTok{\}}
 \end{Highlighting}
 \end{Shaded}
@@ -192,7 +193,8 @@ We also need a couple of helper functions.
 \hypertarget{load-the-information}{%
 \section{Load the information}\label{load-the-information}}
 
-Here we load in the model fits, covariates, and harvest data.
+Here we load in the estimated parameters and states from the selected
+model, as well as the covariates and harvest data and escapement data.
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -230,8 +232,8 @@ Here we load in the model fits, covariates, and harvest data.
 \hypertarget{model-forms}{%
 \section{Model forms}\label{model-forms}}
 
-Here are schematics of the deterministic forms of process models used in
-the analyses.
+Here are the model parameters we used for the schematics of the
+deterministic forms for the Ricker and Beverton-Holt models.
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -257,14 +259,21 @@ the analyses.
 \CommentTok{## S-R curves}
 \CommentTok{## spawners}
 \NormalTok{ss <-}\StringTok{ }\KeywordTok{seq}\NormalTok{(}\DecValTok{0}\NormalTok{,}\FloatTok{1.2e4}\NormalTok{,}\DecValTok{10}\NormalTok{)}
-\CommentTok{## Ricker}
+\CommentTok{## recuits (Ricker)}
 \NormalTok{rr <-}\StringTok{ }\NormalTok{ra}\OperatorTok{*}\NormalTok{ss}\OperatorTok{/}\KeywordTok{exp}\NormalTok{(rb}\OperatorTok{*}\NormalTok{ss)}
-\CommentTok{## B-H}
+\CommentTok{## recruits (B-H)}
 \NormalTok{br <-}\StringTok{ }\NormalTok{ba}\OperatorTok{*}\NormalTok{ss}\OperatorTok{/}\NormalTok{(}\DecValTok{1} \OperatorTok{+}\StringTok{ }\NormalTok{bb}\OperatorTok{*}\NormalTok{ss)}
+\end{Highlighting}
+\end{Shaded}
 
-\CommentTok{## plots}
+Here is the code to recreate the schematics in Figure 1.
 
-\KeywordTok{layout}\NormalTok{(}\KeywordTok{matrix}\NormalTok{(}\KeywordTok{c}\NormalTok{(}\DecValTok{1}\NormalTok{,}\DecValTok{0}\NormalTok{,}\DecValTok{2}\NormalTok{),}\DecValTok{3}\NormalTok{,}\DecValTok{1}\NormalTok{), }\DataTypeTok{heights=}\KeywordTok{lcm}\NormalTok{(}\KeywordTok{c}\NormalTok{(}\DecValTok{3}\NormalTok{,}\FloatTok{0.3}\NormalTok{,}\DecValTok{3}\NormalTok{)}\OperatorTok{*}\FloatTok{2.54}\NormalTok{), }\DataTypeTok{widths=}\KeywordTok{lcm}\NormalTok{(}\DecValTok{3}\OperatorTok{*}\FloatTok{2.54}\NormalTok{))}
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{layout}\NormalTok{(}\KeywordTok{matrix}\NormalTok{(}\KeywordTok{c}\NormalTok{(}\DecValTok{1}\NormalTok{,}\DecValTok{0}\NormalTok{,}\DecValTok{2}\NormalTok{),}\DecValTok{3}\NormalTok{,}\DecValTok{1}\NormalTok{),}
+       \DataTypeTok{heights=}\KeywordTok{lcm}\NormalTok{(}\KeywordTok{c}\NormalTok{(}\DecValTok{3}\NormalTok{,}\FloatTok{0.3}\NormalTok{,}\DecValTok{3}\NormalTok{)}\OperatorTok{*}\FloatTok{2.54}\NormalTok{),}
+       \DataTypeTok{widths=}\KeywordTok{lcm}\NormalTok{(}\DecValTok{3}\OperatorTok{*}\FloatTok{2.54}\NormalTok{))}
+
 \KeywordTok{par}\NormalTok{(}\DataTypeTok{mai=}\KeywordTok{c}\NormalTok{(}\FloatTok{0.4}\NormalTok{,}\FloatTok{0.4}\NormalTok{,}\FloatTok{0.2}\NormalTok{,}\FloatTok{0.2}\NormalTok{), }\DataTypeTok{omi=}\KeywordTok{c}\NormalTok{(}\DecValTok{0}\NormalTok{,}\DecValTok{0}\NormalTok{,}\DecValTok{0}\NormalTok{,}\FloatTok{0.25}\NormalTok{))}
 
 \CommentTok{## Ricker}
@@ -329,10 +338,10 @@ the analyses.
 Figure 1. Deterministic forms of the (a) Ricker and (b) Beverton-Holt
 models used in the analyses (thick lines), including equations for
 carrying capacity (\(K\)) and the number of recruits corresponding to
-the maximum sustained yield (RMSY). The parameter \(\alpha\) defines the
-slope at the origin, the constant \(e\) is Euler's number, and \(W\) is
-the Lambert function (see Scheuerell 2016 for details). The gray line is
-where \(R_t = S_t\).
+the maximum sustained yield (\(R_{\text{MSY}}\)). The parameter
+\(\alpha\) defines the slope at the origin, the constant \(e\) is
+Euler's number, and \(W\) is the Lambert function (see Scheuerell 2016
+for details). The gray line is where \(R_t = S_t\).
 
 \hypertarget{main-results}{%
 \section{Main results}\label{main-results}}
@@ -351,10 +360,9 @@ user-friendly form for plotting, etc.
 \subsection{Total population size}\label{total-population-size}}
 
 Here is our estimate of the total run size (i.e., catch + escapement)
-over time, which includes a forecast for 2018. The black points are the
-data, the blue line is the median posterior estimate, and the shaded
-region is the 95\% credible interval. Note that the y-axis is on a log
-scale.
+over time. The black points are the data, the blue line is the median
+posterior estimate, and the shaded region is the 95\% credible interval.
+Note that the y-axis is on a log scale.
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -371,7 +379,7 @@ scale.
 \KeywordTok{par}\NormalTok{(}\DataTypeTok{mai =} \KeywordTok{c}\NormalTok{(}\FloatTok{0.8}\NormalTok{,}\FloatTok{0.8}\NormalTok{,}\FloatTok{0.1}\NormalTok{,}\FloatTok{0.1}\NormalTok{), }\DataTypeTok{omi =} \KeywordTok{c}\NormalTok{(}\FloatTok{0.5}\NormalTok{,}\FloatTok{0.2}\NormalTok{,}\FloatTok{0.1}\NormalTok{,}\FloatTok{0.2}\NormalTok{))}
 \KeywordTok{plot}\NormalTok{(t_idx_f, p_dat[}\DecValTok{3}\NormalTok{,], }\DataTypeTok{ylim =} \KeywordTok{c}\NormalTok{(yp_min,yp_max), }\DataTypeTok{type =} \StringTok{"n"}\NormalTok{,}
      \DataTypeTok{log =} \StringTok{"y"}\NormalTok{, }\DataTypeTok{xaxt =} \StringTok{"n"}\NormalTok{, }\DataTypeTok{yaxt =} \StringTok{"n"}\NormalTok{, }\DataTypeTok{bty =} \StringTok{"L"}\NormalTok{,}
-     \DataTypeTok{xlab =} \StringTok{"Year"}\NormalTok{, }\DataTypeTok{ylab =} \StringTok{"Catch + escapement"}\NormalTok{, }\DataTypeTok{main =} \StringTok{""}\NormalTok{, }\DataTypeTok{cex.lab =} \FloatTok{1.2}\NormalTok{)}
+     \DataTypeTok{xlab =} \StringTok{"Year"}\NormalTok{, }\DataTypeTok{ylab =} \StringTok{"Run size (Catch + Escapement)"}\NormalTok{, }\DataTypeTok{main =} \StringTok{""}\NormalTok{, }\DataTypeTok{cex.lab =} \FloatTok{1.2}\NormalTok{)}
 \KeywordTok{polygon}\NormalTok{(}\KeywordTok{c}\NormalTok{(t_idx_f, }\KeywordTok{rev}\NormalTok{(t_idx_f)), }\KeywordTok{c}\NormalTok{(p_dat[}\DecValTok{3}\NormalTok{,], }\KeywordTok{rev}\NormalTok{(p_dat[}\DecValTok{1}\NormalTok{,])),}
         \DataTypeTok{col =}\NormalTok{ clr, }\DataTypeTok{border =} \OtherTok{NA}\NormalTok{)}
 \KeywordTok{lines}\NormalTok{(t_idx_f, p_dat[}\DecValTok{2}\NormalTok{,], }\DataTypeTok{col =} \StringTok{"blue3"}\NormalTok{, }\DataTypeTok{lwd =} \DecValTok{2}\NormalTok{)}
@@ -428,8 +436,8 @@ that. Vertical arrows under the x-axes in (b) and (c) indicate the
 
 \CommentTok{## empty plot space for spawner-recruit relationships}
 \NormalTok{dd <-}\StringTok{ }\DecValTok{3000}
-\NormalTok{yM <-}\StringTok{ }\KeywordTok{Re2prec}\NormalTok{(}\KeywordTok{max}\NormalTok{(r_dat), }\StringTok{"ceiling"}\NormalTok{, dd)}
-\NormalTok{xM <-}\StringTok{ }\KeywordTok{Re2prec}\NormalTok{(}\KeywordTok{max}\NormalTok{(s_dat), }\StringTok{"ceiling"}\NormalTok{, dd)}
+\NormalTok{yM <-}\StringTok{ }\KeywordTok{around}\NormalTok{(}\KeywordTok{max}\NormalTok{(r_dat), }\StringTok{"ceiling"}\NormalTok{, dd)}
+\NormalTok{xM <-}\StringTok{ }\KeywordTok{around}\NormalTok{(}\KeywordTok{max}\NormalTok{(s_dat), }\StringTok{"ceiling"}\NormalTok{, dd)}
 \KeywordTok{par}\NormalTok{(}\DataTypeTok{mai =} \KeywordTok{c}\NormalTok{(}\FloatTok{0.8}\NormalTok{,}\FloatTok{0.8}\NormalTok{,}\FloatTok{0.1}\NormalTok{,}\FloatTok{0.1}\NormalTok{), }\DataTypeTok{omi =} \KeywordTok{c}\NormalTok{(}\DecValTok{0}\NormalTok{,}\DecValTok{0}\NormalTok{,}\DecValTok{0}\NormalTok{,}\DecValTok{0}\NormalTok{))}
 \KeywordTok{plot}\NormalTok{(s_dat[}\DecValTok{2}\NormalTok{,], r_dat[}\DecValTok{2}\NormalTok{,], }\DataTypeTok{xlim =} \KeywordTok{c}\NormalTok{(}\DecValTok{0}\NormalTok{,xM), }\DataTypeTok{ylim =} \KeywordTok{c}\NormalTok{(}\DecValTok{0}\NormalTok{,yM), }\DataTypeTok{type =} \StringTok{"n"}\NormalTok{,}
      \DataTypeTok{xaxs =} \StringTok{"i"}\NormalTok{, }\DataTypeTok{yaxs =} \StringTok{"i"}\NormalTok{, }\DataTypeTok{cex.lab =} \FloatTok{1.2}\NormalTok{,}
@@ -500,14 +508,14 @@ that. Vertical arrows under the x-axes in (b) and (c) indicate the
 \NormalTok{R_b_CI <-}\StringTok{ }\KeywordTok{quantile}\NormalTok{(R_b_est, CI_vec)}
 \CommentTok{## pile into last ban for plotting}
 \NormalTok{R_b_est[R_b_est }\OperatorTok{>}\StringTok{ }\DecValTok{13}\NormalTok{] <-}\StringTok{ }\DecValTok{13}
-\NormalTok{brks <-}\StringTok{ }\KeywordTok{seq}\NormalTok{(}\KeywordTok{Re2prec}\NormalTok{(}\KeywordTok{min}\NormalTok{(R_b_est), }\StringTok{"floor"}\NormalTok{),}
-            \KeywordTok{Re2prec}\NormalTok{(}\KeywordTok{max}\NormalTok{(R_b_est), }\StringTok{"ceiling"}\NormalTok{),}
+\NormalTok{brks <-}\StringTok{ }\KeywordTok{seq}\NormalTok{(}\KeywordTok{around}\NormalTok{(}\KeywordTok{min}\NormalTok{(R_b_est), }\StringTok{"floor"}\NormalTok{),}
+            \KeywordTok{around}\NormalTok{(}\KeywordTok{max}\NormalTok{(R_b_est), }\StringTok{"ceiling"}\NormalTok{),}
             \DataTypeTok{length.out =} \KeywordTok{length}\NormalTok{(}\KeywordTok{seq}\NormalTok{(}\DecValTok{0}\NormalTok{, a_thresh, }\DecValTok{2}\NormalTok{)))}
 \KeywordTok{hist}\NormalTok{(R_b_est, }\DataTypeTok{freq =} \OtherTok{FALSE}\NormalTok{, }\DataTypeTok{breaks =}\NormalTok{ brks, }\DataTypeTok{col =}\NormalTok{ clr, }\DataTypeTok{border =} \StringTok{"blue3"}\NormalTok{,}
      \DataTypeTok{xlab =} \StringTok{""}\NormalTok{, }\DataTypeTok{xaxt =} \StringTok{"n"}\NormalTok{, }\DataTypeTok{yaxt =} \StringTok{"n"}\NormalTok{,}
      \DataTypeTok{main =} \StringTok{""}\NormalTok{, }\DataTypeTok{ylab =} \StringTok{""}\NormalTok{, }\DataTypeTok{cex.lab =} \FloatTok{1.2}\NormalTok{)}
-\KeywordTok{axis}\NormalTok{(}\DecValTok{1}\NormalTok{, }\DataTypeTok{at =} \KeywordTok{seq}\NormalTok{(}\KeywordTok{Re2prec}\NormalTok{(}\KeywordTok{min}\NormalTok{(R_b_est), }\StringTok{"floor"}\NormalTok{),}
-                 \KeywordTok{Re2prec}\NormalTok{(}\KeywordTok{max}\NormalTok{(R_b_est), }\StringTok{"ceiling"}\NormalTok{),}
+\KeywordTok{axis}\NormalTok{(}\DecValTok{1}\NormalTok{, }\DataTypeTok{at =} \KeywordTok{seq}\NormalTok{(}\KeywordTok{around}\NormalTok{(}\KeywordTok{min}\NormalTok{(R_b_est), }\StringTok{"floor"}\NormalTok{),}
+                 \KeywordTok{around}\NormalTok{(}\KeywordTok{max}\NormalTok{(R_b_est), }\StringTok{"ceiling"}\NormalTok{),}
                  \DecValTok{2}\NormalTok{))}
 \NormalTok{aHt <-}\StringTok{ }\NormalTok{(}\KeywordTok{par}\NormalTok{()}\OperatorTok{$}\NormalTok{usr[}\DecValTok{4}\NormalTok{] }\OperatorTok{-}\StringTok{ }\KeywordTok{par}\NormalTok{()}\OperatorTok{$}\NormalTok{usr[}\DecValTok{3}\NormalTok{]) }\OperatorTok{/}\StringTok{ }\DecValTok{12}
 \KeywordTok{arrows}\NormalTok{(R_b_CI, }\KeywordTok{par}\NormalTok{()}\OperatorTok{$}\NormalTok{usr[}\DecValTok{3}\NormalTok{], R_b_CI,}\KeywordTok{par}\NormalTok{()}\OperatorTok{$}\NormalTok{usr[}\DecValTok{3}\NormalTok{]}\OperatorTok{-}\NormalTok{aHt,}
