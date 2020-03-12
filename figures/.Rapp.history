@@ -1,0 +1,14 @@
+colorstrip <- function(color="blue") {#
+	color <- rev(colors()[grep(color, colors())])#
+	dev.new(height=length(color)/6, width=2)#
+	par(mai=rep(0,4), omi=rep(0.1,4))#
+	plot(1.1, 1, col=color[1], pch=15, cex=2.1,#
+		 xaxt="n", yaxt="n", xlim=c(1,2), ylim=c(1,length(color)),#
+		 xlab="", ylab="", bty="n")#
+	text(1.2, 1, color[1], adj=c(0,0.5), cex=0.7)#
+	for(i in 2:length(color)) {#
+		points(1.1, i, col= color[i], pch=15, cex=2.1)#
+		text(1.2, i, color[i], adj=c(0,0.5), cex=0.7)#
+	}#
+}
+colorstrip("gray")
